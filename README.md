@@ -313,11 +313,10 @@ See [📋 ATTRIBUTION.md](./ATTRIBUTION.md) for details.
 All rights reserved.
 
 ## 💰 Donation
-<style>.donation-link:hover img { transform: scale(1.05); transition: transform 0.3s ease; }</style>
 If you liked this package and want to accelerate the development of iOS and desktop platform support, consider supporting the project with a donation below. Your contributions will directly help bring flutter_v2ray_client to more platforms faster!
 
 <div style="display: flex; gap: 10px; align-items: center;">
-<a href="https://nowpayments.io/donation?api_key=1194fbf5-0420-4156-bc86-2d49033517c5" target="_blank" rel="noreferrer noopener" class="donation-link">
-   <img src="https://nowpayments.io/images/embeds/donation-button-black.svg" alt="Cryptocurrency & Bitcoin donation button by NOWPayments" width="150" style="border: 2px solid white; border-radius: 8px;">
-</a>
+  <a href="https://nowpayments.io/donation?api_key=1194fbf5-0420-4156-bc86-2d49033517c5" target="_blank" rel="noreferrer noopener" class="donation-link">
+    <img src="https://nowpayments.io/images/embeds/donation-button-white.svg" alt="Cryptocurrency & Bitcoin donation button by NOWPayments" width="150">
+  </a>
 </div>
