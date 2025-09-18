@@ -46,7 +46,7 @@
 
 | Main Screen |
 |-------------|
-| ![Main Screen](screenshots/main_screen.png){: width="300" } |
+|<img src="screenshots/main_screen.png" alt="Main Screen" width="300"/>|
 
 *Example app demonstrating flutter_v2ray_client features*
 
