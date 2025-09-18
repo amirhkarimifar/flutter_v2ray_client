@@ -2,10 +2,10 @@
 
 [![Open Source Love](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](#)
 ![](https://img.shields.io/github/license/amir-zr/flutter_v2ray_client)
-![](https://img.shields.io/github/stars/amir-zr/flutter_v2ray_client) 
-![](https://img.shields.io/github/forks/amir-zr/flutter_v2ray_client) 
-![](https://img.shields.io/github/tag/amir-zr/flutter_v2ray_client) 
-![](https://img.shields.io/github/release/amir-zr/flutter_v2ray_client) 
+![](https://img.shields.io/github/stars/amir-zr/flutter_v2ray_client)
+![](https://img.shields.io/github/forks/amir-zr/flutter_v2ray_client)
+![](https://img.shields.io/github/tag/amir-zr/flutter_v2ray_client)
+![](https://img.shields.io/github/release/amir-zr/flutter_v2ray_client)
 ![](https://img.shields.io/github/issues/amir-zr/flutter_v2ray_client)
 
 ## Table of contents
@@ -245,7 +245,7 @@ v2ray.startV2Ray(
 This package fully supports Android's 16 KB page size, ensuring compatibility with the latest Android devices and requirements for Google Play Store publishing. The plugin is built with modern Android development practices that handle both 4 KB and 16 KB page sizes seamlessly.
 
 ### gradle.properties
-- add this line 
+- add this line
 ```gradle
 android.bundle.enableUncompressedNativeLibs = false
 ```
@@ -307,16 +307,17 @@ We welcome contributions from the community! If you're interested in helping imp
 ---
 
 ## 📋 Attribution
-This project uses third-party libraries and resources.  
+This project uses third-party libraries and resources.
 See [📋 ATTRIBUTION.md](./ATTRIBUTION.md) for details.
 
 All rights reserved.
 
 ## 💰 Donation
+<style>.donation-link:hover img { transform: scale(1.05); transition: transform 0.3s ease; }</style>
 If you liked this package and want to accelerate the development of iOS and desktop platform support, consider supporting the project with a donation below. Your contributions will directly help bring flutter_v2ray_client to more platforms faster!
 
 <div style="display: flex; gap: 10px; align-items: center;">
-<a href="https://nowpayments.io/donation?api_key=1194fbf5-0420-4156-bc86-2d49033517c5" target="_blank" rel="noreferrer noopener">
-   <img src="https://nowpayments.io/images/embeds/donation-button-black.svg" alt="Cryptocurrency & Bitcoin donation button by NOWPayments" width="150">
+<a href="https://nowpayments.io/donation?api_key=1194fbf5-0420-4156-bc86-2d49033517c5" target="_blank" rel="noreferrer noopener" class="donation-link">
+   <img src="https://nowpayments.io/images/embeds/donation-button-black.svg" alt="Cryptocurrency & Bitcoin donation button by NOWPayments" width="150" style="border: 2px solid white; border-radius: 8px;">
 </a>
 </div>
