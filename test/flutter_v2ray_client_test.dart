@@ -6,7 +6,8 @@ void main() {
 
   group('V2ray URL Parsing Tests', () {
     test('should parse vmess URL correctly', () {
-      const vmessUrl = 'vmess://eyJ2IjoiMiIsInBzIjoiVGVzdCBTZXJ2ZXIiLCJhZGQiOiIxMC4wLjAuMSIsInBvcnQiOiI0NDMiLCJpZCI6IjEyMzQ1Njc4LWFiY2QtMTIzNC1hYmNkLTEyMzQ1Njc4YWJjZCIsImFpZCI6IjAiLCJuZXQiOiJ0Y3AiLCJ0eXBlIjoibm9uZSIsImhvc3QiOiIiLCJwYXRoIjoiIiwidGxzIjoiIn0=';
+      const vmessUrl =
+          'vmess://eyJ2IjoiMiIsInBzIjoiVGVzdCBTZXJ2ZXIiLCJhZGQiOiIxMC4wLjAuMSIsInBvcnQiOiI0NDMiLCJpZCI6IjEyMzQ1Njc4LWFiY2QtMTIzNC1hYmNkLTEyMzQ1Njc4YWJjZCIsImFpZCI6IjAiLCJuZXQiOiJ0Y3AiLCJ0eXBlIjoibm9uZSIsImhvc3QiOiIiLCJwYXRoIjoiIiwidGxzIjoiIn0=';
 
       expect(() => V2ray.parseFromURL(vmessUrl), returnsNormally);
       final parsed = V2ray.parseFromURL(vmessUrl);
@@ -15,7 +16,8 @@ void main() {
     });
 
     test('should parse vless URL correctly', () {
-      const vlessUrl = 'vless://12345678-abcd-1234-abcd-12345678abcd@10.0.0.1:443?type=tcp&security=tls&sni=example.com#Test VLESS';
+      const vlessUrl =
+          'vless://12345678-abcd-1234-abcd-12345678abcd@10.0.0.1:443?type=tcp&security=tls&sni=example.com#Test VLESS';
 
       expect(() => V2ray.parseFromURL(vlessUrl), returnsNormally);
       final parsed = V2ray.parseFromURL(vlessUrl);
@@ -46,21 +48,25 @@ void main() {
     test('should validate valid JSON config', () {
       const validConfig = '{"inbounds": [], "outbounds": []}';
 
-      expect(() => v2ray.startV2Ray(
-        remark: 'Test',
-        config: validConfig,
-        proxyOnly: true,
-      ), returnsNormally);
+      expect(
+          () => v2ray.startV2Ray(
+                remark: 'Test',
+                config: validConfig,
+                proxyOnly: true,
+              ),
+          returnsNormally);
     });
 
     test('should throw ArgumentError for invalid JSON config', () {
       const invalidConfig = 'invalid json';
 
-      expect(() => v2ray.startV2Ray(
-        remark: 'Test',
-        config: invalidConfig,
-        proxyOnly: true,
-      ), throwsArgumentError);
+      expect(
+          () => v2ray.startV2Ray(
+                remark: 'Test',
+                config: invalidConfig,
+                proxyOnly: true,
+              ),
+          throwsArgumentError);
     });
 
     test('should validate server delay with valid JSON config', () {
@@ -69,10 +75,12 @@ void main() {
       expect(() => v2ray.getServerDelay(config: validConfig), returnsNormally);
     });
 
-    test('should throw ArgumentError for server delay with invalid JSON config', () {
+    test('should throw ArgumentError for server delay with invalid JSON config',
+        () {
       const invalidConfig = 'invalid json';
 
-      expect(() => v2ray.getServerDelay(config: invalidConfig), throwsArgumentError);
+      expect(() => v2ray.getServerDelay(config: invalidConfig),
+          throwsArgumentError);
     });
   });
 }
