@@ -6,10 +6,6 @@ topics:
   - v2ray
   - xray
   - proxy
-  - flutter-plugin
-  - networking
-  - android
-  - flutter
 
 version: 1.0.0
 homepage: https://github.com/amir-zr/flutter_v2ray_client
