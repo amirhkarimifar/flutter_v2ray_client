@@ -46,7 +46,7 @@
 
 | Main Screen |
 |-------------|
-|<img src="screenshots/main_screen.png" alt="Main Screen" width="300"/>|
+|<img src="https://github.com/amir-zr/flutter_v2ray_client/raw/main/screenshots/main_screen.png" alt="Main Screen" width="300"/>|
 
 *Example app demonstrating flutter_v2ray_client features*
 
