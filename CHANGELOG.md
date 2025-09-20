@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2025-09-19
+## [1.1.0]
+
+### Added
+- **Enhanced VPN Protection**: Implemented robust Android VPN socket protector to prevent connection loops
+- **IPv6 Support**: Added IPv6 preference option for server connections
+- **Socket Management**: Introduced outbound socket management with automatic IP failover
+- **Cross-Platform Builds**: Android-only build tags for seamless development across platforms
+
+### Changed
+- **Dependencies**: Updated to `golang.org/x/sys` for Android unix syscalls
+- **Core Integration**: Improved Java/Go integration for better reliability
+- **Documentation**: Added comprehensive guide for VPN protector implementation
+
+### Fixed
+- **Connection Stability**: Resolved issues with VPN socket routing
+- **Build System**: Ensured compatibility with non-Android platforms
+
+## [1.0.0]
 
 ### Added
 - **Initial Release**: Comprehensive Flutter plugin for V2Ray/Xray client functionality
