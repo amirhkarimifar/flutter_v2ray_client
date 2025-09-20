@@ -33,8 +33,8 @@ import org.json.JSONObject;
 
 import libv2ray.CoreCallbackHandler;
 import libv2ray.CoreController;
-import libv2ray.CoreProtector;
 import libv2ray.Libv2ray;
+import libv2ray.V2RayProtector;
 
 public final class V2rayCoreManager {
     private static final int NOTIFICATION_ID = 1;
@@ -110,6 +110,17 @@ public final class V2rayCoreManager {
         try {
             v2rayServicesListener = (V2rayServicesListener) targetService;
             Libv2ray.initCoreEnv(getUserAssetsPath(targetService.getApplicationContext()), "");
+
+            // Register Android VPN socket protector with libv2ray (Go)
+            Libv2ray.useProtector(new V2RayProtector() {
+                @Override
+                public boolean protect(long fd) {
+                    if (v2rayServicesListener != null) {
+                        return v2rayServicesListener.onProtect((int) fd);
+                    }
+                    return true;
+                }
+            });
             // Initialize controller with callback handler
             coreController = Libv2ray.newCoreController(new CoreCallbackHandler() {
                 @Override
@@ -148,21 +159,6 @@ public final class V2rayCoreManager {
                     return 0;
                 }
             });
-            // Register socket protector using new AAR API
-            try {
-                Libv2ray.setProtector(new CoreProtector() {
-                    @Override
-                    public boolean protect(int fd) {
-                        if (v2rayServicesListener != null && v2rayServicesListener.getService() instanceof V2rayVPNService) {
-                            return ((V2rayVPNService) v2rayServicesListener.getService()).protect(fd);
-                        }
-                        return true;
-                    }
-                });
-                Log.i("V2rayCoreManager", "Socket protector registered");
-            } catch (Throwable t) {
-                Log.e("V2rayCoreManager", "Failed to set protector", t);
-            }
             isLibV2rayCoreInitialized = true;
             SERVICE_DURATION = "00:00:00";
             seconds = 0;
@@ -197,6 +193,11 @@ public final class V2rayCoreManager {
                 Log.e(V2rayCoreManager.class.getSimpleName(), "startCore failed => coreController is null.");
                 return false;
             }
+            // Configure protector target server and IP family preference before starting core
+            try {
+                String server = v2rayConfig.CONNECTED_V2RAY_SERVER_ADDRESS + ":" + v2rayConfig.CONNECTED_V2RAY_SERVER_PORT;
+                Libv2ray.setProtectorServer(server, false);
+            } catch (Exception ignored) {}
             coreController.startLoop(v2rayConfig.V2RAY_FULL_JSON_CONFIG);
             V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTED;
             if (isV2rayCoreRunning()) {
@@ -348,7 +349,8 @@ public final class V2rayCoreManager {
 
     public Long getConnectedV2rayServerDelay() {
         try {
-            if (coreController == null) return -1L;
+            if (coreController == null)
+                return -1L;
             return coreController.measureDelay(AppConfigs.DELAY_URL);
         } catch (Exception e) {
             return -1L;
