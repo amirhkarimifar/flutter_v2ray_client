@@ -36,7 +36,8 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
 
     private static final int REQUEST_CODE_VPN_PERMISSION = 24;
     private static final int REQUEST_CODE_POST_NOTIFICATIONS = 1;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor = Executors.newCachedThreadPool();
+
     private MethodChannel vpnControlMethod;
     private EventChannel vpnStatusEvent;
     private EventChannel.EventSink vpnStatusSink;
