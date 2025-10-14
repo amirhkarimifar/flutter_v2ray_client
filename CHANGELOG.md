@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0]
+
+### Added
+- **Security**: Implemented app-specific broadcast isolation for V2Ray connections
+
+### Changed
+- **Build**: Enabled legacy JNI library packaging for better compatibility
+- **Build**: Pinned NDK version to 27.0.12077973 for consistent builds
+- **Performance**: Optimized server delay checks with parallel execution
+
 ## [1.1.0]
 
 ### Added
