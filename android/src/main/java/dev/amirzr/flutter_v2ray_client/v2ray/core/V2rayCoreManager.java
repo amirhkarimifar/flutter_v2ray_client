@@ -86,7 +86,9 @@ public final class V2rayCoreManager {
                 }
                 SERVICE_DURATION = Utilities.convertIntToTwoDigit(hours) + ":" + Utilities.convertIntToTwoDigit(minutes)
                         + ":" + Utilities.convertIntToTwoDigit(seconds);
-                Intent connection_info_intent = new Intent("V2RAY_CONNECTION_INFO");
+                String packageName = context.getPackageName();
+                Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
+                connection_info_intent.setPackage(packageName);
                 connection_info_intent.putExtra("STATE", V2rayCoreManager.getInstance().V2RAY_STATE);
                 connection_info_intent.putExtra("DURATION", SERVICE_DURATION);
                 connection_info_intent.putExtra("UPLOAD_SPEED", uploadSpeed);
@@ -193,11 +195,14 @@ public final class V2rayCoreManager {
                 Log.e(V2rayCoreManager.class.getSimpleName(), "startCore failed => coreController is null.");
                 return false;
             }
-            // Configure protector target server and IP family preference before starting core
+            // Configure protector target server and IP family preference before starting
+            // core
             try {
-                String server = v2rayConfig.CONNECTED_V2RAY_SERVER_ADDRESS + ":" + v2rayConfig.CONNECTED_V2RAY_SERVER_PORT;
+                String server = v2rayConfig.CONNECTED_V2RAY_SERVER_ADDRESS + ":"
+                        + v2rayConfig.CONNECTED_V2RAY_SERVER_PORT;
                 Libv2ray.setProtectorServer(server, false);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             coreController.startLoop(v2rayConfig.V2RAY_FULL_JSON_CONFIG);
             V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTED;
             if (isV2rayCoreRunning()) {
@@ -241,7 +246,10 @@ public final class V2rayCoreManager {
         uploadSpeed = 0;
         downloadSpeed = 0;
         if (v2rayServicesListener != null) {
-            Intent connection_info_intent = new Intent("V2RAY_CONNECTION_INFO");
+            Context context = v2rayServicesListener.getService().getApplicationContext();
+            String packageName = context.getPackageName();
+            Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
+            connection_info_intent.setPackage(packageName);
             connection_info_intent.putExtra("STATE", V2rayCoreManager.getInstance().V2RAY_STATE);
             connection_info_intent.putExtra("DURATION", SERVICE_DURATION);
             connection_info_intent.putExtra("UPLOAD_SPEED", uploadSpeed);
@@ -249,7 +257,7 @@ public final class V2rayCoreManager {
             connection_info_intent.putExtra("UPLOAD_TRAFFIC", uploadSpeed);
             connection_info_intent.putExtra("DOWNLOAD_TRAFFIC", uploadSpeed);
             try {
-                v2rayServicesListener.getService().getApplicationContext().sendBroadcast(connection_info_intent);
+                context.sendBroadcast(connection_info_intent);
             } catch (Exception e) {
                 // ignore
             }

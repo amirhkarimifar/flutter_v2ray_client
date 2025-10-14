@@ -12,9 +12,7 @@ import dev.amirzr.flutter_v2ray_client.v2ray.interfaces.V2rayServicesListener;
 import dev.amirzr.flutter_v2ray_client.v2ray.utils.AppConfigs;
 import dev.amirzr.flutter_v2ray_client.v2ray.utils.V2rayConfig;
 
-
 public class V2rayProxyOnlyService extends Service implements V2rayServicesListener {
-
 
     @Override
     public void onCreate() {
@@ -24,7 +22,8 @@ public class V2rayProxyOnlyService extends Service implements V2rayServicesListe
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        AppConfigs.V2RAY_SERVICE_COMMANDS startCommand = (AppConfigs.V2RAY_SERVICE_COMMANDS) intent.getSerializableExtra("COMMAND");
+        AppConfigs.V2RAY_SERVICE_COMMANDS startCommand = (AppConfigs.V2RAY_SERVICE_COMMANDS) intent
+                .getSerializableExtra("COMMAND");
         if (startCommand.equals(AppConfigs.V2RAY_SERVICE_COMMANDS.START_SERVICE)) {
             V2rayConfig v2rayConfig = (V2rayConfig) intent.getSerializableExtra("V2RAY_CONFIG");
             if (v2rayConfig == null) {
@@ -44,7 +43,9 @@ public class V2rayProxyOnlyService extends Service implements V2rayServicesListe
             AppConfigs.V2RAY_CONFIG = null;
         } else if (startCommand.equals(AppConfigs.V2RAY_SERVICE_COMMANDS.MEASURE_DELAY)) {
             new Thread(() -> {
-                Intent sendB = new Intent("CONNECTED_V2RAY_SERVER_DELAY");
+                String packageName = getPackageName();
+                Intent sendB = new Intent(packageName + ".CONNECTED_V2RAY_SERVER_DELAY");
+                sendB.setPackage(packageName);
                 sendB.putExtra("DELAY", String.valueOf(V2rayCoreManager.getInstance().getConnectedV2rayServerDelay()));
                 sendBroadcast(sendB);
             }, "MEASURE_CONNECTED_V2RAY_SERVER_DELAY").start();
@@ -53,7 +54,6 @@ public class V2rayProxyOnlyService extends Service implements V2rayServicesListe
         }
         return START_STICKY;
     }
-
 
     @Override
     public void onDestroy() {
@@ -78,7 +78,7 @@ public class V2rayProxyOnlyService extends Service implements V2rayServicesListe
 
     @Override
     public void startService() {
-        //ignore
+        // ignore
     }
 
     @Override
@@ -86,7 +86,7 @@ public class V2rayProxyOnlyService extends Service implements V2rayServicesListe
         try {
             stopSelf();
         } catch (Exception e) {
-            //ignore
+            // ignore
         }
     }
 }

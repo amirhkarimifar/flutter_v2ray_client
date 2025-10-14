@@ -38,7 +38,8 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        AppConfigs.V2RAY_SERVICE_COMMANDS startCommand = (AppConfigs.V2RAY_SERVICE_COMMANDS) intent.getSerializableExtra("COMMAND");
+        AppConfigs.V2RAY_SERVICE_COMMANDS startCommand = (AppConfigs.V2RAY_SERVICE_COMMANDS) intent
+                .getSerializableExtra("COMMAND");
         if (startCommand.equals(AppConfigs.V2RAY_SERVICE_COMMANDS.START_SERVICE)) {
             v2rayConfig = (V2rayConfig) intent.getSerializableExtra("V2RAY_CONFIG");
             if (v2rayConfig == null) {
@@ -57,7 +58,9 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
             AppConfigs.V2RAY_CONFIG = null;
         } else if (startCommand.equals(AppConfigs.V2RAY_SERVICE_COMMANDS.MEASURE_DELAY)) {
             new Thread(() -> {
-                Intent sendB = new Intent("CONNECTED_V2RAY_SERVER_DELAY");
+                String packageName = getPackageName();
+                Intent sendB = new Intent(packageName + ".CONNECTED_V2RAY_SERVER_DELAY");
+                sendB.setPackage(packageName);
                 sendB.putExtra("DELAY", String.valueOf(V2rayCoreManager.getInstance().getConnectedV2rayServerDelay()));
                 sendBroadcast(sendB);
             }, "MEASURE_CONNECTED_V2RAY_SERVER_DELAY").start();
@@ -77,7 +80,7 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
         try {
             stopSelf();
         } catch (Exception e) {
-            //ignore
+            // ignore
             Log.e("CANT_STOP", "SELF");
         }
         try {
@@ -115,7 +118,7 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                 try {
                     builder.addDisallowedApplication(v2rayConfig.BLOCKED_APPS.get(i));
                 } catch (Exception e) {
-                    //ignore
+                    // ignore
                 }
             }
         }
@@ -143,13 +146,19 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
             }
         } catch (Exception e) {
             // If parsing fails, add sane fallback DNS
-            try { builder.addDnsServer("1.1.1.1"); } catch (Exception ignored) {}
-            try { builder.addDnsServer("8.8.8.8"); } catch (Exception ignored) {}
+            try {
+                builder.addDnsServer("1.1.1.1");
+            } catch (Exception ignored) {
+            }
+            try {
+                builder.addDnsServer("8.8.8.8");
+            } catch (Exception ignored) {
+            }
         }
         try {
             mInterface.close();
         } catch (Exception e) {
-            //ignore
+            // ignore
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             builder.setMetered(false);
@@ -167,14 +176,15 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
     }
 
     private void runTun2socks() {
-        ArrayList<String> cmd = new ArrayList<>(Arrays.asList(new File(getApplicationInfo().nativeLibraryDir, "libtun2socks.so").getAbsolutePath(),
-                "--netif-ipaddr", "26.26.26.2",
-                "--netif-netmask", "255.255.255.252",
-                "--socks-server-addr", "127.0.0.1:" + v2rayConfig.LOCAL_SOCKS5_PORT,
-                "--tunmtu", "1500",
-                "--sock-path", "sock_path",
-                "--enable-udprelay",
-                "--loglevel", "error"));
+        ArrayList<String> cmd = new ArrayList<>(
+                Arrays.asList(new File(getApplicationInfo().nativeLibraryDir, "libtun2socks.so").getAbsolutePath(),
+                        "--netif-ipaddr", "26.26.26.2",
+                        "--netif-netmask", "255.255.255.252",
+                        "--socks-server-addr", "127.0.0.1:" + v2rayConfig.LOCAL_SOCKS5_PORT,
+                        "--tunmtu", "1500",
+                        "--sock-path", "sock_path",
+                        "--enable-udprelay",
+                        "--loglevel", "error"));
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(cmd);
             processBuilder.redirectErrorStream(true);
@@ -186,7 +196,7 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                         runTun2socks();
                     }
                 } catch (InterruptedException e) {
-                    //ignore
+                    // ignore
                 }
             }, "Tun2socks_Thread").start();
             sendFileDescriptor();
@@ -205,14 +215,15 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                 try {
                     Thread.sleep(50L * tries);
                     LocalSocket clientLocalSocket = new LocalSocket();
-                    clientLocalSocket.connect(new LocalSocketAddress(localSocksFile, LocalSocketAddress.Namespace.FILESYSTEM));
+                    clientLocalSocket
+                            .connect(new LocalSocketAddress(localSocksFile, LocalSocketAddress.Namespace.FILESYSTEM));
                     if (!clientLocalSocket.isConnected()) {
                         Log.e("SOCK_FILE", "Unable to connect to localSocksFile [" + localSocksFile + "]");
                     } else {
                         Log.e("SOCK_FILE", "connected to sock file [" + localSocksFile + "]");
                     }
                     OutputStream clientOutStream = clientLocalSocket.getOutputStream();
-                    clientLocalSocket.setFileDescriptorsForSend(new FileDescriptor[]{tunFd});
+                    clientLocalSocket.setFileDescriptorsForSend(new FileDescriptor[] { tunFd });
                     clientOutStream.write(32);
                     clientLocalSocket.setFileDescriptorsForSend(null);
                     clientLocalSocket.shutdownOutput();
@@ -220,13 +231,13 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                     break;
                 } catch (Exception e) {
                     Log.e(V2rayVPNService.class.getSimpleName(), "sendFd failed =>", e);
-                    if (tries > 5) break;
+                    if (tries > 5)
+                        break;
                     tries += 1;
                 }
             }
         }, "sendFd_Thread").start();
     }
-
 
     @Override
     public void onDestroy() {

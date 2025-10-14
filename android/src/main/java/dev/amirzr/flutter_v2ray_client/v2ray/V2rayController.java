@@ -31,10 +31,13 @@ public class V2rayController {
                 AppConfigs.V2RAY_STATE = (AppConfigs.V2RAY_STATES) arg1.getExtras().getSerializable("STATE");
             }
         };
+        // Use package-specific intent filter to isolate broadcasts per app
+        String packageName = context.getPackageName();
+        IntentFilter filter = new IntentFilter(packageName + ".V2RAY_CONNECTION_INFO");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, new IntentFilter("V2RAY_CONNECTION_INFO"), Context.RECEIVER_EXPORTED);
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
-            context.registerReceiver(receiver, new IntentFilter("V2RAY_CONNECTION_INFO"));
+            context.registerReceiver(receiver, filter);
         }
     }
 
@@ -44,7 +47,8 @@ public class V2rayController {
         }
     }
 
-    public static void StartV2ray(final Context context, final String remark, final String config, final ArrayList<String> blocked_apps, final ArrayList<String> bypass_subnets) {
+    public static void StartV2ray(final Context context, final String remark, final String config,
+            final ArrayList<String> blocked_apps, final ArrayList<String> bypass_subnets) {
         AppConfigs.V2RAY_CONFIG = Utilities.parseV2rayJsonFile(remark, config, blocked_apps, bypass_subnets);
         if (AppConfigs.V2RAY_CONFIG == null) {
             return;
@@ -92,7 +96,7 @@ public class V2rayController {
         } else {
             return -1;
         }
-        final long[] delay = {-1};
+        final long[] delay = { -1 };
 
         final CountDownLatch latch = new CountDownLatch(1);
         check_delay.putExtra("COMMAND", AppConfigs.V2RAY_SERVICE_COMMANDS.MEASURE_DELAY);
@@ -107,10 +111,12 @@ public class V2rayController {
             }
         };
 
-        IntentFilter delayIntentFilter = new IntentFilter("CONNECTED_V2RAY_SERVER_DELAY");
+        // Use package-specific intent filter to isolate broadcasts per app
+        String packageName = context.getPackageName();
+        IntentFilter delayIntentFilter = new IntentFilter(packageName + ".CONNECTED_V2RAY_SERVER_DELAY");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.registerReceiver(receiver, delayIntentFilter, Context.RECEIVER_EXPORTED);
-        }else{
+            context.registerReceiver(receiver, delayIntentFilter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
             context.registerReceiver(receiver, delayIntentFilter);
         }
 
@@ -140,6 +146,5 @@ public class V2rayController {
     public static String getCoreVersion() {
         return Libv2ray.checkVersionX();
     }
-
 
 }

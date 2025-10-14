@@ -63,13 +63,15 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                 if (v2rayBroadCastReceiver == null) {
                     v2rayBroadCastReceiver = new V2rayReceiver();
                 }
-                IntentFilter filter = new IntentFilter("V2RAY_CONNECTION_INFO");
+                // Use package-specific intent filter to isolate broadcasts per app
+                String packageName = appContext.getPackageName();
+                IntentFilter filter = new IntentFilter(packageName + ".V2RAY_CONNECTION_INFO");
 
                 // Use application context if activity is null (background service scenario)
                 Context contextToUse = activity != null ? activity : appContext;
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    contextToUse.registerReceiver(v2rayBroadCastReceiver, filter, Context.RECEIVER_EXPORTED);
+                    contextToUse.registerReceiver(v2rayBroadCastReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
                 } else {
                     contextToUse.registerReceiver(v2rayBroadCastReceiver, filter);
                 }
@@ -195,9 +197,11 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
             if (v2rayBroadCastReceiver == null) {
                 v2rayBroadCastReceiver = new V2rayReceiver();
             }
-            IntentFilter filter = new IntentFilter("V2RAY_CONNECTION_INFO");
+            // Use package-specific intent filter to isolate broadcasts per app
+            String packageName = appContext.getPackageName();
+            IntentFilter filter = new IntentFilter(packageName + ".V2RAY_CONNECTION_INFO");
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                activity.registerReceiver(v2rayBroadCastReceiver, filter, Context.RECEIVER_EXPORTED);
+                activity.registerReceiver(v2rayBroadCastReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
             } else {
                 activity.registerReceiver(v2rayBroadCastReceiver, filter);
             }
@@ -220,9 +224,11 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
             if (v2rayBroadCastReceiver == null) {
                 v2rayBroadCastReceiver = new V2rayReceiver();
             }
-            IntentFilter filter = new IntentFilter("V2RAY_CONNECTION_INFO");
+            // Use package-specific intent filter to isolate broadcasts per app
+            String packageName = appContext.getPackageName();
+            IntentFilter filter = new IntentFilter(packageName + ".V2RAY_CONNECTION_INFO");
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                activity.registerReceiver(v2rayBroadCastReceiver, filter, Context.RECEIVER_EXPORTED);
+                activity.registerReceiver(v2rayBroadCastReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
             } else {
                 activity.registerReceiver(v2rayBroadCastReceiver, filter);
             }
