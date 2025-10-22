@@ -262,7 +262,15 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
+        try {
+            isRunning = false;
+            stopAllProcess();
+            Log.i(V2rayVPNService.class.getSimpleName(), "VPN Service destroyed successfully");
+        } catch (Exception e) {
+            Log.e(V2rayVPNService.class.getSimpleName(), "Error during service destruction", e);
+        } finally {
+            super.onDestroy();
+        }
     }
 
     @Override

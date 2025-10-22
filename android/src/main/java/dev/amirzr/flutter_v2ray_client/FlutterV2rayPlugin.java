@@ -10,6 +10,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.VpnService;
 import android.os.Build;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -56,24 +57,30 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
         vpnStatusEvent.setStreamHandler(new EventChannel.StreamHandler() {
             @Override
             public void onListen(Object arguments, EventChannel.EventSink events) {
-                vpnStatusSink = events;
-                V2rayReceiver.vpnStatusSink = vpnStatusSink;
+                try {
+                    vpnStatusSink = events;
+                    V2rayReceiver.vpnStatusSink = vpnStatusSink;
 
-                // Register the BroadcastReceiver now that vpnStatusSink is available
-                if (v2rayBroadCastReceiver == null) {
-                    v2rayBroadCastReceiver = new V2rayReceiver();
-                }
-                // Use package-specific intent filter to isolate broadcasts per app
-                String packageName = appContext.getPackageName();
-                IntentFilter filter = new IntentFilter(packageName + ".V2RAY_CONNECTION_INFO");
+                    // Register the BroadcastReceiver now that vpnStatusSink is available
+                    if (v2rayBroadCastReceiver == null) {
+                        v2rayBroadCastReceiver = new V2rayReceiver();
+                    }
+                    // Use package-specific intent filter to isolate broadcasts per app
+                    String packageName = appContext.getPackageName();
+                    IntentFilter filter = new IntentFilter(packageName + ".V2RAY_CONNECTION_INFO");
 
-                // Use application context if activity is null (background service scenario)
-                Context contextToUse = activity != null ? activity : appContext;
+                    // Use application context if activity is null (background service scenario)
+                    Context contextToUse = activity != null ? activity : appContext;
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    contextToUse.registerReceiver(v2rayBroadCastReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-                } else {
-                    contextToUse.registerReceiver(v2rayBroadCastReceiver, filter);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        contextToUse.registerReceiver(v2rayBroadCastReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                    } else {
+                        contextToUse.registerReceiver(v2rayBroadCastReceiver, filter);
+                    }
+                } catch (Exception e) {
+                    Log.e("FlutterV2rayPlugin", "Failed to register broadcast receiver", e);
+                    // Even if broadcast receiver registration fails, the plugin can still work
+                    // The user just won't receive status updates
                 }
             }
 

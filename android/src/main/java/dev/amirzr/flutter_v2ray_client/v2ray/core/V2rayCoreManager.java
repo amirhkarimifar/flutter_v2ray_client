@@ -89,16 +89,21 @@ public final class V2rayCoreManager {
                         + ":" + Utilities.convertIntToTwoDigit(seconds);
                 
                 // Always send state broadcasts for app functionality
-                String packageName = context.getPackageName();
-                Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
-                connection_info_intent.setPackage(packageName);
-                connection_info_intent.putExtra("STATE", V2rayCoreManager.getInstance().V2RAY_STATE);
-                connection_info_intent.putExtra("DURATION", SERVICE_DURATION);
-                connection_info_intent.putExtra("UPLOAD_SPEED", uploadSpeed);
-                connection_info_intent.putExtra("DOWNLOAD_SPEED", downloadSpeed);
-                connection_info_intent.putExtra("UPLOAD_TRAFFIC", totalUpload);
-                connection_info_intent.putExtra("DOWNLOAD_TRAFFIC", totalDownload);
-                context.sendBroadcast(connection_info_intent);
+                try {
+                    String packageName = context.getPackageName();
+                    Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
+                    connection_info_intent.setPackage(packageName);
+                    connection_info_intent.putExtra("STATE", V2rayCoreManager.getInstance().V2RAY_STATE);
+                    connection_info_intent.putExtra("DURATION", SERVICE_DURATION);
+                    connection_info_intent.putExtra("UPLOAD_SPEED", uploadSpeed);
+                    connection_info_intent.putExtra("DOWNLOAD_SPEED", downloadSpeed);
+                    connection_info_intent.putExtra("UPLOAD_TRAFFIC", totalUpload);
+                    connection_info_intent.putExtra("DOWNLOAD_TRAFFIC", totalDownload);
+                    context.sendBroadcast(connection_info_intent);
+                } catch (Exception e) {
+                    Log.e(V2rayCoreManager.class.getSimpleName(), "Failed to send broadcast", e);
+                    // Continue operation even if broadcast fails
+                }
 
                 Log.d(V2rayCoreManager.class.getSimpleName(), "makeDurationTimer => " + SERVICE_DURATION);
             }
@@ -258,25 +263,29 @@ public final class V2rayCoreManager {
         hours = 0;
         uploadSpeed = 0;
         downloadSpeed = 0;
-        if (v2rayServicesListener != null) {
-            Context context = v2rayServicesListener.getService().getApplicationContext();
-            String packageName = context.getPackageName();
-            Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
-            connection_info_intent.setPackage(packageName);
-            connection_info_intent.putExtra("STATE", V2rayCoreManager.getInstance().V2RAY_STATE);
-            connection_info_intent.putExtra("DURATION", SERVICE_DURATION);
-            connection_info_intent.putExtra("UPLOAD_SPEED", uploadSpeed);
-            connection_info_intent.putExtra("DOWNLOAD_SPEED", uploadSpeed);
-            connection_info_intent.putExtra("UPLOAD_TRAFFIC", uploadSpeed);
-            connection_info_intent.putExtra("DOWNLOAD_TRAFFIC", uploadSpeed);
+        if (v2rayServicesListener != null && v2rayServicesListener.getService() != null) {
             try {
-                context.sendBroadcast(connection_info_intent);
+                Context context = v2rayServicesListener.getService().getApplicationContext();
+                if (context != null) {
+                    String packageName = context.getPackageName();
+                    Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
+                    connection_info_intent.setPackage(packageName);
+                    connection_info_intent.putExtra("STATE", V2rayCoreManager.getInstance().V2RAY_STATE);
+                    connection_info_intent.putExtra("DURATION", SERVICE_DURATION);
+                    connection_info_intent.putExtra("UPLOAD_SPEED", uploadSpeed);
+                    connection_info_intent.putExtra("DOWNLOAD_SPEED", downloadSpeed); // Fixed: was uploadSpeed
+                    connection_info_intent.putExtra("UPLOAD_TRAFFIC", totalUpload); // Fixed: was uploadSpeed
+                    connection_info_intent.putExtra("DOWNLOAD_TRAFFIC", totalDownload); // Fixed: was uploadSpeed
+                    context.sendBroadcast(connection_info_intent);
+                }
             } catch (Exception e) {
-                // ignore
+                Log.e(V2rayCoreManager.class.getSimpleName(), "Failed to send disconnected broadcast", e);
+                // Continue cleanup even if broadcast fails
             }
         }
         if (countDownTimer != null) {
             countDownTimer.cancel();
+            countDownTimer = null; // Clear reference to prevent memory leaks
         }
     }
 
@@ -305,52 +314,68 @@ public final class V2rayCoreManager {
     private void showNotification(final V2rayConfig v2rayConfig) {
         Service context = v2rayServicesListener.getService();
         if (context == null) {
+            Log.w(V2rayCoreManager.class.getSimpleName(), "Service context is null, cannot show notification");
             return;
         }
 
-        Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-        if (launchIntent != null) {
-            launchIntent.setAction("FROM_DISCONNECT_BTN");
-            launchIntent.setFlags(
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-        }
-        final int flags;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags = PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT;
-        } else {
-            flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        }
-        PendingIntent notificationContentPendingIntent = PendingIntent.getActivity(
-                context, 0, launchIntent, flags);
-
-        String notificationChannelID = createNotificationChannelID(v2rayConfig.APPLICATION_NAME);
-
-        Intent stopIntent;
-        if (AppConfigs.V2RAY_CONNECTION_MODE == AppConfigs.V2RAY_CONNECTION_MODES.PROXY_ONLY) {
-            stopIntent = new Intent(context, V2rayProxyOnlyService.class);
-        } else if (AppConfigs.V2RAY_CONNECTION_MODE == AppConfigs.V2RAY_CONNECTION_MODES.VPN_TUN) {
-            stopIntent = new Intent(context, V2rayVPNService.class);
-        } else {
+        // Double-check notification permission before proceeding
+        if (!hasNotificationPermission) {
+            Log.w(V2rayCoreManager.class.getSimpleName(), "Notification permission not granted, skipping notification");
             return;
         }
-        stopIntent.putExtra("COMMAND", AppConfigs.V2RAY_SERVICE_COMMANDS.STOP_SERVICE);
 
-        PendingIntent pendingIntent = PendingIntent.getService(
-                context, 0, stopIntent, flags);
+        try {
+            Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            if (launchIntent != null) {
+                launchIntent.setAction("FROM_DISCONNECT_BTN");
+                launchIntent.setFlags(
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            }
+            final int flags;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                flags = PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT;
+            } else {
+                flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            }
+            PendingIntent notificationContentPendingIntent = PendingIntent.getActivity(
+                    context, 0, launchIntent, flags);
 
-        // Build the notification
-        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(context, notificationChannelID)
-                .setSmallIcon(v2rayConfig.APPLICATION_ICON)
-                .setContentTitle(v2rayConfig.REMARK)
-                .addAction(0, v2rayConfig.NOTIFICATION_DISCONNECT_BUTTON_NAME, notificationContentPendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_MIN)
-                .setShowWhen(false)
-                .setOnlyAlertOnce(true)
-                .setContentIntent(notificationContentPendingIntent)
-                .setSilent(true)
-                .setOngoing(true);
+            String notificationChannelID = createNotificationChannelID(v2rayConfig.APPLICATION_NAME);
 
-        context.startForeground(NOTIFICATION_ID, notificationBuilder.build());
+            Intent stopIntent;
+            if (AppConfigs.V2RAY_CONNECTION_MODE == AppConfigs.V2RAY_CONNECTION_MODES.PROXY_ONLY) {
+                stopIntent = new Intent(context, V2rayProxyOnlyService.class);
+            } else if (AppConfigs.V2RAY_CONNECTION_MODE == AppConfigs.V2RAY_CONNECTION_MODES.VPN_TUN) {
+                stopIntent = new Intent(context, V2rayVPNService.class);
+            } else {
+                Log.w(V2rayCoreManager.class.getSimpleName(), "Unknown connection mode, cannot create stop intent");
+                return;
+            }
+            stopIntent.putExtra("COMMAND", AppConfigs.V2RAY_SERVICE_COMMANDS.STOP_SERVICE);
+
+            PendingIntent pendingIntent = PendingIntent.getService(
+                    context, 0, stopIntent, flags);
+
+            // Build the notification
+            NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(context, notificationChannelID)
+                    .setSmallIcon(v2rayConfig.APPLICATION_ICON)
+                    .setContentTitle(v2rayConfig.REMARK)
+                    .addAction(0, v2rayConfig.NOTIFICATION_DISCONNECT_BUTTON_NAME, notificationContentPendingIntent)
+                    .setPriority(NotificationCompat.PRIORITY_MIN)
+                    .setShowWhen(false)
+                    .setOnlyAlertOnce(true)
+                    .setContentIntent(notificationContentPendingIntent)
+                    .setSilent(true)
+                    .setOngoing(true);
+
+            // Try to start foreground service with notification
+            context.startForeground(NOTIFICATION_ID, notificationBuilder.build());
+            Log.d(V2rayCoreManager.class.getSimpleName(), "Notification shown successfully");
+        } catch (Exception e) {
+            Log.e(V2rayCoreManager.class.getSimpleName(), "Failed to show notification", e);
+            // If notification fails, we should not crash the service
+            // The VPN can still work without notifications
+        }
     }
 
     public boolean isV2rayCoreRunning() {
