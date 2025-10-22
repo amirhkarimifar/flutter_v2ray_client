@@ -88,19 +88,17 @@ public final class V2rayCoreManager {
                 SERVICE_DURATION = Utilities.convertIntToTwoDigit(hours) + ":" + Utilities.convertIntToTwoDigit(minutes)
                         + ":" + Utilities.convertIntToTwoDigit(seconds);
                 
-                // Only send state broadcasts if notification permission is granted
-                if (hasNotificationPermission) {
-                    String packageName = context.getPackageName();
-                    Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
-                    connection_info_intent.setPackage(packageName);
-                    connection_info_intent.putExtra("STATE", V2rayCoreManager.getInstance().V2RAY_STATE);
-                    connection_info_intent.putExtra("DURATION", SERVICE_DURATION);
-                    connection_info_intent.putExtra("UPLOAD_SPEED", uploadSpeed);
-                    connection_info_intent.putExtra("DOWNLOAD_SPEED", downloadSpeed);
-                    connection_info_intent.putExtra("UPLOAD_TRAFFIC", totalUpload);
-                    connection_info_intent.putExtra("DOWNLOAD_TRAFFIC", totalDownload);
-                    context.sendBroadcast(connection_info_intent);
-                }
+                // Always send state broadcasts for app functionality
+                String packageName = context.getPackageName();
+                Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
+                connection_info_intent.setPackage(packageName);
+                connection_info_intent.putExtra("STATE", V2rayCoreManager.getInstance().V2RAY_STATE);
+                connection_info_intent.putExtra("DURATION", SERVICE_DURATION);
+                connection_info_intent.putExtra("UPLOAD_SPEED", uploadSpeed);
+                connection_info_intent.putExtra("DOWNLOAD_SPEED", downloadSpeed);
+                connection_info_intent.putExtra("UPLOAD_TRAFFIC", totalUpload);
+                connection_info_intent.putExtra("DOWNLOAD_TRAFFIC", totalDownload);
+                context.sendBroadcast(connection_info_intent);
 
                 Log.d(V2rayCoreManager.class.getSimpleName(), "makeDurationTimer => " + SERVICE_DURATION);
             }
@@ -260,7 +258,7 @@ public final class V2rayCoreManager {
         hours = 0;
         uploadSpeed = 0;
         downloadSpeed = 0;
-        if (v2rayServicesListener != null && hasNotificationPermission) {
+        if (v2rayServicesListener != null) {
             Context context = v2rayServicesListener.getService().getApplicationContext();
             String packageName = context.getPackageName();
             Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
