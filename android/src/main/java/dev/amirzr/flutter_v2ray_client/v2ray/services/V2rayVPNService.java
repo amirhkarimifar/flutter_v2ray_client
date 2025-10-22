@@ -92,24 +92,42 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
     }
 
     private void stopAllProcess() {
-        stopForeground(true);
+        try {
+            // Stop foreground service and remove notification
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+            } else {
+                stopForeground(true);
+            }
+        } catch (Exception e) {
+            Log.w(V2rayVPNService.class.getSimpleName(), "Failed to stop foreground", e);
+        }
+        
         isRunning = false;
         if (process != null) {
-            process.destroy();
+            try {
+                process.destroy();
+            } catch (Exception e) {
+                Log.w(V2rayVPNService.class.getSimpleName(), "Failed to destroy process", e);
+            }
+            process = null;
         }
         V2rayCoreManager.getInstance().stopCore();
+        
+        if (mInterface != null) {
+            try {
+                mInterface.close();
+            } catch (Exception e) {
+                Log.w(V2rayVPNService.class.getSimpleName(), "Failed to close VPN interface", e);
+            }
+            mInterface = null;
+        }
+        
         try {
             stopSelf();
         } catch (Exception e) {
-            // ignore
-            Log.e("CANT_STOP", "SELF");
+            Log.e(V2rayVPNService.class.getSimpleName(), "Failed to stop service", e);
         }
-        try {
-            mInterface.close();
-        } catch (Exception e) {
-            // ignored
-        }
-
     }
 
     private void setup() {

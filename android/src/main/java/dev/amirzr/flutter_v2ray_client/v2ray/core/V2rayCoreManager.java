@@ -221,7 +221,9 @@ public final class V2rayCoreManager {
             }
             coreController.startLoop(v2rayConfig.V2RAY_FULL_JSON_CONFIG);
             V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTED;
-            if (isV2rayCoreRunning() && hasNotificationPermission) {
+            // CRITICAL: Always show notification for foreground service
+            // The service MUST call startForeground() regardless of notification permissions
+            if (isV2rayCoreRunning()) {
                 showNotification(v2rayConfig);
             }
         } catch (Exception e) {
@@ -233,12 +235,19 @@ public final class V2rayCoreManager {
 
     public void stopCore() {
         try {
-            if (hasNotificationPermission) {
-                NotificationManager notificationManager = (NotificationManager) v2rayServicesListener.getService()
-                        .getSystemService(Context.NOTIFICATION_SERVICE);
-                if (notificationManager != null) {
-                    notificationManager.cancel(NOTIFICATION_ID);
+            // Always try to cancel notification, even without permission
+            // This ensures proper cleanup
+            try {
+                if (v2rayServicesListener != null && v2rayServicesListener.getService() != null) {
+                    NotificationManager notificationManager = (NotificationManager) v2rayServicesListener.getService()
+                            .getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (notificationManager != null) {
+                        notificationManager.cancel(NOTIFICATION_ID);
+                    }
                 }
+            } catch (Exception e) {
+                Log.w(V2rayCoreManager.class.getSimpleName(), "Failed to cancel notification", e);
+                // Continue with cleanup even if notification cancellation fails
             }
             if (isV2rayCoreRunning()) {
                 if (coreController != null) {
@@ -318,11 +327,7 @@ public final class V2rayCoreManager {
             return;
         }
 
-        // Double-check notification permission before proceeding
-        if (!hasNotificationPermission) {
-            Log.w(V2rayCoreManager.class.getSimpleName(), "Notification permission not granted, skipping notification");
-            return;
-        }
+        String notificationChannelID = null;
 
         try {
             Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
@@ -340,7 +345,7 @@ public final class V2rayCoreManager {
             PendingIntent notificationContentPendingIntent = PendingIntent.getActivity(
                     context, 0, launchIntent, flags);
 
-            String notificationChannelID = createNotificationChannelID(v2rayConfig.APPLICATION_NAME);
+            notificationChannelID = createNotificationChannelID(v2rayConfig.APPLICATION_NAME);
 
             Intent stopIntent;
             if (AppConfigs.V2RAY_CONNECTION_MODE == AppConfigs.V2RAY_CONNECTION_MODES.PROXY_ONLY) {
@@ -360,7 +365,6 @@ public final class V2rayCoreManager {
             NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(context, notificationChannelID)
                     .setSmallIcon(v2rayConfig.APPLICATION_ICON)
                     .setContentTitle(v2rayConfig.REMARK)
-                    .addAction(0, v2rayConfig.NOTIFICATION_DISCONNECT_BUTTON_NAME, notificationContentPendingIntent)
                     .setPriority(NotificationCompat.PRIORITY_MIN)
                     .setShowWhen(false)
                     .setOnlyAlertOnce(true)
@@ -368,13 +372,40 @@ public final class V2rayCoreManager {
                     .setSilent(true)
                     .setOngoing(true);
 
-            // Try to start foreground service with notification
+            // Only add action button if we have notification permission
+            if (hasNotificationPermission) {
+                notificationBuilder.addAction(0, v2rayConfig.NOTIFICATION_DISCONNECT_BUTTON_NAME, notificationContentPendingIntent);
+            }
+
+            // CRITICAL: Always call startForeground() for foreground services
+            // This MUST be called within 5 seconds of starting the service, regardless of notification permissions
+            // If notification permission is denied, Android will simply not display the notification,
+            // but the service will not crash
             context.startForeground(NOTIFICATION_ID, notificationBuilder.build());
-            Log.d(V2rayCoreManager.class.getSimpleName(), "Notification shown successfully");
+            
+            if (hasNotificationPermission) {
+                Log.d(V2rayCoreManager.class.getSimpleName(), "Notification shown successfully");
+            } else {
+                Log.w(V2rayCoreManager.class.getSimpleName(), "Service started in foreground mode, but notification may not be visible due to missing permission");
+            }
         } catch (Exception e) {
             Log.e(V2rayCoreManager.class.getSimpleName(), "Failed to show notification", e);
-            // If notification fails, we should not crash the service
-            // The VPN can still work without notifications
+            // Critical: If startForeground fails, we must create a minimal notification to prevent crash
+            try {
+                // Create absolute minimal notification as fallback
+                NotificationCompat.Builder fallbackBuilder = new NotificationCompat.Builder(context, notificationChannelID)
+                        .setSmallIcon(android.R.drawable.ic_dialog_info) // Use system icon as fallback
+                        .setContentTitle("VPN Service")
+                        .setContentText("Running")
+                        .setPriority(NotificationCompat.PRIORITY_MIN)
+                        .setSilent(true)
+                        .setOngoing(true);
+                context.startForeground(NOTIFICATION_ID, fallbackBuilder.build());
+                Log.w(V2rayCoreManager.class.getSimpleName(), "Started foreground with fallback notification");
+            } catch (Exception fallbackException) {
+                Log.e(V2rayCoreManager.class.getSimpleName(), "Failed to start foreground with fallback notification", fallbackException);
+                // At this point, the service will likely crash, but we've done everything we can
+            }
         }
     }
 

@@ -5,20 +5,21 @@
 The VPN client was crashing when:
 1. Notification permissions are blocked/denied
 2. VPN attempts to disconnect or send background data
-3. The foreground service tries to start without proper notification permissions
+3. **The foreground service failed to call `startForeground()` within 5 seconds** (CRITICAL)
 4. Broadcast receivers encounter null pointers during state changes
 
 ## Root Causes Identified
 
-### 1. Unsafe Broadcast Handling
+### 1. **CRITICAL: Missing startForeground() Call**
+- **Android requires ALL foreground services to call `startForeground()` within 5 seconds of starting, regardless of notification permissions**
+- The previous fix incorrectly skipped `startForeground()` when notification permission was denied
+- This caused `ForegroundServiceDidNotStartInTimeException` and immediate crash
+- Even without notification permission, the service MUST call `startForeground()` (Android just won't display the notification)
+
+### 2. Unsafe Broadcast Handling
 - `V2rayReceiver.onReceive()` didn't check if `vpnStatusSink` was null
 - Missing null checks for intent and extras
 - Unsafe string manipulation on state objects
-
-### 2. Notification Permission Issues
-- Service attempted to start foreground without checking notification permissions
-- `startForeground()` crashes when notification permissions are denied
-- Missing error handling around notification creation
 
 ### 3. Background Data Transmission
 - Broadcasts were sent even when receivers might not be available
@@ -65,33 +66,56 @@ public void onReceive(Context context, Intent intent) {
 }
 ```
 
-### 2. Safe Notification Handling (`V2rayCoreManager.java`)
+### 2. **CRITICAL Fix: Always Call startForeground() (`V2rayCoreManager.java`)**
 
 ```java
 private void showNotification(final V2rayConfig v2rayConfig) {
     Service context = v2rayServicesListener.getService();
     if (context == null) {
-        Log.w(V2rayCoreManager.class.getSimpleName(), "Service context is null, cannot show notification");
-        return;
-    }
-
-    // Double-check notification permission before proceeding
-    if (!hasNotificationPermission) {
-        Log.w(V2rayCoreManager.class.getSimpleName(), "Notification permission not granted, skipping notification");
         return;
     }
 
     try {
-        // ... notification creation code
+        // Build notification (always required for foreground services)
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(context, channelID)
+                .setSmallIcon(v2rayConfig.APPLICATION_ICON)
+                .setContentTitle(v2rayConfig.REMARK)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setSilent(true)
+                .setOngoing(true);
+
+        // Only add action button if we have notification permission
+        if (hasNotificationPermission) {
+            notificationBuilder.addAction(0, v2rayConfig.NOTIFICATION_DISCONNECT_BUTTON_NAME, pendingIntent);
+        }
+
+        // CRITICAL: ALWAYS call startForeground() for foreground services
+        // This MUST be called within 5 seconds of starting the service, regardless of permissions
+        // If permission is denied, Android won't display the notification, but the service won't crash
         context.startForeground(NOTIFICATION_ID, notificationBuilder.build());
-        Log.d(V2rayCoreManager.class.getSimpleName(), "Notification shown successfully");
+        
     } catch (Exception e) {
-        Log.e(V2rayCoreManager.class.getSimpleName(), "Failed to show notification", e);
-        // If notification fails, we should not crash the service
-        // The VPN can still work without notifications
+        Log.e(TAG, "Failed to show notification", e);
+        // Create minimal fallback notification to prevent crash
+        try {
+            NotificationCompat.Builder fallback = new NotificationCompat.Builder(context, channelID)
+                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setContentTitle("VPN Service")
+                    .setPriority(NotificationCompat.PRIORITY_MIN)
+                    .setSilent(true);
+            context.startForeground(NOTIFICATION_ID, fallback.build());
+        } catch (Exception fallbackException) {
+            Log.e(TAG, "Failed fallback notification", fallbackException);
+        }
     }
 }
 ```
+
+Key changes:
+- **Removed permission check before `startForeground()`** - this was causing the crash
+- Always call `startForeground()` regardless of notification permissions
+- Conditionally add action buttons only if permission is granted
+- Added fallback notification creation if primary fails
 
 ### 3. Protected Broadcast Transmission
 
@@ -192,6 +216,7 @@ public void onListen(Object arguments, EventChannel.EventSink events) {
 ## Impact
 
 These fixes ensure that:
+- ✅ **Service no longer crashes due to missing `startForeground()` call** (CRITICAL FIX)
 - ✅ VPN works even when notification permissions are denied
 - ✅ No crashes during disconnect operations
 - ✅ Proper cleanup of resources
@@ -199,4 +224,6 @@ These fixes ensure that:
 - ✅ Maintains backwards compatibility
 - ✅ Improved user experience with graceful degradation
 
-The VPN client now handles notification permission issues gracefully without compromising core functionality.
+## Key Takeaway
+
+**The critical issue was that Android REQUIRES all foreground services to call `startForeground()` within 5 seconds of starting, regardless of notification permissions.** The previous fix incorrectly skipped this call when permissions were denied, causing immediate crashes. The service must ALWAYS call `startForeground()` - Android will simply not display the notification if permission is denied, but the service will run without crashing.
