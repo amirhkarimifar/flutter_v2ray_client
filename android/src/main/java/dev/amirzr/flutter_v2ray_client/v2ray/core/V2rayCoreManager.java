@@ -47,6 +47,7 @@ public final class V2rayCoreManager {
     private int seconds, minutes, hours;
     private long totalDownload, totalUpload, uploadSpeed, downloadSpeed;
     private String SERVICE_DURATION = "00:00:00";
+    private boolean hasNotificationPermission = false;
 
     public static V2rayCoreManager getInstance() {
         if (INSTANCE == null) {
@@ -86,16 +87,20 @@ public final class V2rayCoreManager {
                 }
                 SERVICE_DURATION = Utilities.convertIntToTwoDigit(hours) + ":" + Utilities.convertIntToTwoDigit(minutes)
                         + ":" + Utilities.convertIntToTwoDigit(seconds);
-                String packageName = context.getPackageName();
-                Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
-                connection_info_intent.setPackage(packageName);
-                connection_info_intent.putExtra("STATE", V2rayCoreManager.getInstance().V2RAY_STATE);
-                connection_info_intent.putExtra("DURATION", SERVICE_DURATION);
-                connection_info_intent.putExtra("UPLOAD_SPEED", uploadSpeed);
-                connection_info_intent.putExtra("DOWNLOAD_SPEED", downloadSpeed);
-                connection_info_intent.putExtra("UPLOAD_TRAFFIC", totalUpload);
-                connection_info_intent.putExtra("DOWNLOAD_TRAFFIC", totalDownload);
-                context.sendBroadcast(connection_info_intent);
+                
+                // Only send state broadcasts if notification permission is granted
+                if (hasNotificationPermission) {
+                    String packageName = context.getPackageName();
+                    Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
+                    connection_info_intent.setPackage(packageName);
+                    connection_info_intent.putExtra("STATE", V2rayCoreManager.getInstance().V2RAY_STATE);
+                    connection_info_intent.putExtra("DURATION", SERVICE_DURATION);
+                    connection_info_intent.putExtra("UPLOAD_SPEED", uploadSpeed);
+                    connection_info_intent.putExtra("DOWNLOAD_SPEED", downloadSpeed);
+                    connection_info_intent.putExtra("UPLOAD_TRAFFIC", totalUpload);
+                    connection_info_intent.putExtra("DOWNLOAD_TRAFFIC", totalDownload);
+                    context.sendBroadcast(connection_info_intent);
+                }
 
                 Log.d(V2rayCoreManager.class.getSimpleName(), "makeDurationTimer => " + SERVICE_DURATION);
             }
@@ -179,8 +184,16 @@ public final class V2rayCoreManager {
     }
 
     public boolean startCore(final V2rayConfig v2rayConfig) {
-        makeDurationTimer(v2rayServicesListener.getService().getApplicationContext(),
-                v2rayConfig.ENABLE_TRAFFIC_STATICS);
+        // Check notification permission at startup
+        Service context = v2rayServicesListener.getService();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            hasNotificationPermission = ActivityCompat.checkSelfPermission(context,
+                    Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            hasNotificationPermission = true; // Pre-Android 13 doesn't need permission
+        }
+        
+        makeDurationTimer(context.getApplicationContext(), v2rayConfig.ENABLE_TRAFFIC_STATICS);
         V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTING;
         if (!isLibV2rayCoreInitialized) {
             Log.e(V2rayCoreManager.class.getSimpleName(),
@@ -205,7 +218,7 @@ public final class V2rayCoreManager {
             }
             coreController.startLoop(v2rayConfig.V2RAY_FULL_JSON_CONFIG);
             V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTED;
-            if (isV2rayCoreRunning()) {
+            if (isV2rayCoreRunning() && hasNotificationPermission) {
                 showNotification(v2rayConfig);
             }
         } catch (Exception e) {
@@ -217,10 +230,12 @@ public final class V2rayCoreManager {
 
     public void stopCore() {
         try {
-            NotificationManager notificationManager = (NotificationManager) v2rayServicesListener.getService()
-                    .getSystemService(Context.NOTIFICATION_SERVICE);
-            if (notificationManager != null) {
-                notificationManager.cancel(NOTIFICATION_ID);
+            if (hasNotificationPermission) {
+                NotificationManager notificationManager = (NotificationManager) v2rayServicesListener.getService()
+                        .getSystemService(Context.NOTIFICATION_SERVICE);
+                if (notificationManager != null) {
+                    notificationManager.cancel(NOTIFICATION_ID);
+                }
             }
             if (isV2rayCoreRunning()) {
                 if (coreController != null) {
@@ -245,7 +260,7 @@ public final class V2rayCoreManager {
         hours = 0;
         uploadSpeed = 0;
         downloadSpeed = 0;
-        if (v2rayServicesListener != null) {
+        if (v2rayServicesListener != null && hasNotificationPermission) {
             Context context = v2rayServicesListener.getService().getApplicationContext();
             String packageName = context.getPackageName();
             Intent connection_info_intent = new Intent(packageName + ".V2RAY_CONNECTION_INFO");
@@ -293,14 +308,6 @@ public final class V2rayCoreManager {
         Service context = v2rayServicesListener.getService();
         if (context == null) {
             return;
-        }
-
-        // Check notification permission for Android 13+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ActivityCompat.checkSelfPermission(context,
-                    Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                return;
-            }
         }
 
         Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
