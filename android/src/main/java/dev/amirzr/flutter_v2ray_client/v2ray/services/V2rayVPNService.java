@@ -96,7 +96,11 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
     }
 
     private void stopAllProcess() {
-        stopForeground(true);
+        try {
+            stopForeground(true);
+        } catch (Exception e) {
+            Log.w("V2rayVPNService", "stopForeground failed (service may not be in foreground)", e);
+        }
         isRunning = false;
         if (process != null) {
             process.destroy();
