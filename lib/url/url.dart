@@ -49,7 +49,7 @@ abstract class V2RayURL {
       'port': null,
       'network': null
     },
-    'sniffing': {'enabled': false, 'destOverride': null, 'metadataOnly': null},
+    'sniffing': {'enabled': true, 'destOverride': ['fakedns', 'http', 'tls', 'quic'], 'metadataOnly': false, 'routeOnly': false},
     'streamSettings': null,
     'allocate': null
   };
@@ -114,6 +114,13 @@ abstract class V2RayURL {
     'mux': null
   };
 
+  /// DNS outbound — intercepts DNS queries and routes them to Xray's internal DNS module.
+  /// This is critical for FakeDNS: without it, DNS queries bypass Xray entirely.
+  Map<String, dynamic> outboundDns = {
+    'tag': 'dns-out',
+    'protocol': 'dns',
+  };
+
   /// DNS configuration.
   Map<String, dynamic> dns = {
     'servers': ['8.8.8.8', '8.8.4.4']
@@ -127,12 +134,20 @@ abstract class V2RayURL {
     'balancers': []
   };
 
+  /// FakeDNS configuration.
+  /// FakeDNS assigns fake IPs from a reserved pool, allowing the proxy server
+  /// to resolve domains using its own DNS (important for country-specific domains like .ir).
+  List<Map<String, dynamic>> fakedns = [
+    {'ipPool': '198.18.0.0/16', 'poolSize': 65535}
+  ];
+
   /// Complete V2Ray configuration combining all settings.
   Map<String, dynamic> get fullConfiguration => {
         'log': log,
         'inbounds': [inbound],
-        'outbounds': [outbound1, outbound2, outbound3],
+        'outbounds': [outbound1, outbound2, outbound3, outboundDns],
         'dns': dns,
+        'fakedns': fakedns,
         'routing': routing,
       };
 

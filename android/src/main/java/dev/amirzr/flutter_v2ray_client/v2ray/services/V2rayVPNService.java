@@ -157,7 +157,10 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                         try {
                             Object entry = serversArray.get(i);
                             if (entry instanceof String) {
-                                builder.addDnsServer((String) entry);
+                                String dnsStr = (String) entry;
+                                // Skip non-IP DNS entries like 'fakedns' — Android VPN builder needs real IPs
+                                if (dnsStr.equals("fakedns") || dnsStr.equals("localhost")) continue;
+                                builder.addDnsServer(dnsStr);
                             } else if (entry instanceof JSONObject) {
                                 JSONObject obj = (JSONObject) entry;
                                 if (obj.has("address")) {
