@@ -49,7 +49,7 @@ abstract class V2RayURL {
       'port': null,
       'network': null
     },
-    'sniffing': {'enabled': true, 'destOverride': ['fakedns', 'http', 'tls', 'quic'], 'metadataOnly': false, 'routeOnly': false},
+    'sniffing': {'enabled': true, 'destOverride': ['fakedns', 'http', 'tls', 'quic'], 'metadataOnly': true, 'routeOnly': false},
     'streamSettings': null,
     'allocate': null
   };
@@ -137,8 +137,11 @@ abstract class V2RayURL {
   /// FakeDNS configuration.
   /// FakeDNS assigns fake IPs from a reserved pool, allowing the proxy server
   /// to resolve domains using its own DNS (important for country-specific domains like .ir).
+  /// Both IPv4 and IPv6 pools are required — missing IPv6 pool causes native crash
+  /// when AAAA DNS queries arrive (nil pointer in Go xray-core).
   List<Map<String, dynamic>> fakedns = [
-    {'ipPool': '198.18.0.0/16', 'poolSize': 65535}
+    {'ipPool': '198.18.0.0/16', 'poolSize': 65535},
+    {'ipPool': 'fc00::/18', 'poolSize': 65535}
   ];
 
   /// Complete V2Ray configuration combining all settings.

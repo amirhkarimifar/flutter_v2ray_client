@@ -31,6 +31,8 @@ import dev.amirzr.flutter_v2ray_client.v2ray.utils.V2rayConfig;
 
 import org.json.JSONObject;
 
+import java.util.concurrent.locks.ReentrantLock;
+
 import libv2ray.CoreCallbackHandler;
 import libv2ray.CoreController;
 import libv2ray.Libv2ray;
@@ -39,10 +41,16 @@ import libv2ray.V2RayProtector;
 public final class V2rayCoreManager {
     private static final int NOTIFICATION_ID = 1;
     private volatile static V2rayCoreManager INSTANCE;
+    // Lock to serialize all native xray core operations (startLoop, stopLoop, measureOutboundDelay)
+    // Concurrent access to libv2jni.so causes native crashes (SIGSEGV)
+    private final ReentrantLock coreLock = new ReentrantLock();
     public V2rayServicesListener v2rayServicesListener = null;
     private CoreController coreController;
     public AppConfigs.V2RAY_STATES V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_DISCONNECTED;
     private boolean isLibV2rayCoreInitialized = false;
+    // Whether initCoreEnv has been called (needed for measureOutboundDelay even without VPN service)
+    private volatile boolean isCoreEnvInitialized = false;
+    private Context appContext;
     private CountDownTimer countDownTimer;
     private int seconds, minutes, hours;
     private long totalDownload, totalUpload, uploadSpeed, downloadSpeed;
@@ -60,6 +68,10 @@ public final class V2rayCoreManager {
     }
 
     private void makeDurationTimer(final Context context, final boolean enable_traffic_statics) {
+        // Cancel any existing timer to prevent leaked timer instances
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+        }
         countDownTimer = new CountDownTimer(7200, 1000) {
             @RequiresApi(api = Build.VERSION_CODES.M)
             public void onTick(long millisUntilFinished) {
@@ -77,12 +89,21 @@ public final class V2rayCoreManager {
                     hours = 0;
                 }
                 if (enable_traffic_statics) {
-                    downloadSpeed = (coreController != null ? coreController.queryStats("block", "downlink") : 0)
-                            + (coreController != null ? coreController.queryStats("proxy", "downlink") : 0);
-                    uploadSpeed = (coreController != null ? coreController.queryStats("block", "uplink") : 0)
-                            + (coreController != null ? coreController.queryStats("proxy", "uplink") : 0);
-                    totalDownload = totalDownload + downloadSpeed;
-                    totalUpload = totalUpload + uploadSpeed;
+                    // Use tryLock to avoid blocking the timer and to prevent native crashes
+                    // when queryStats overlaps with startLoop/stopLoop
+                    if (coreLock.tryLock()) {
+                        try {
+                            downloadSpeed = (coreController != null ? coreController.queryStats("block", "downlink") : 0)
+                                    + (coreController != null ? coreController.queryStats("proxy", "downlink") : 0);
+                            uploadSpeed = (coreController != null ? coreController.queryStats("block", "uplink") : 0)
+                                    + (coreController != null ? coreController.queryStats("proxy", "uplink") : 0);
+                            totalDownload = totalDownload + downloadSpeed;
+                            totalUpload = totalUpload + uploadSpeed;
+                        } finally {
+                            coreLock.unlock();
+                        }
+                    }
+                    // If lock not available, skip stats this tick (core is busy with start/stop)
                 }
                 SERVICE_DURATION = Utilities.convertIntToTwoDigit(hours) + ":" + Utilities.convertIntToTwoDigit(minutes)
                         + ":" + Utilities.convertIntToTwoDigit(seconds);
@@ -110,10 +131,43 @@ public final class V2rayCoreManager {
         }.start();
     }
 
+    /**
+     * Store app context for lazy Go core initialization.
+     * Called from V2rayController.init() before any pings.
+     */
+    public void setAppContext(Context context) {
+        this.appContext = context.getApplicationContext();
+    }
+
+    /**
+     * Ensure Go core environment is initialized. Safe to call multiple times.
+     * Required before any Libv2ray static method (measureOutboundDelay, etc.).
+     */
+    private void ensureCoreEnvInitialized() {
+        if (isCoreEnvInitialized) return;
+        synchronized (this) {
+            if (isCoreEnvInitialized) return;
+            if (appContext != null) {
+                try {
+                    Libv2ray.initCoreEnv(getUserAssetsPath(appContext), "");
+                    isCoreEnvInitialized = true;
+                    Log.i(V2rayCoreManager.class.getSimpleName(), "initCoreEnv called for ping-only path");
+                } catch (Exception e) {
+                    Log.e(V2rayCoreManager.class.getSimpleName(), "ensureCoreEnvInitialized failed", e);
+                }
+            } else {
+                Log.w(V2rayCoreManager.class.getSimpleName(),
+                        "ensureCoreEnvInitialized: appContext is null — call setAppContext first");
+            }
+        }
+    }
+
     public void setUpListener(Service targetService) {
         try {
             v2rayServicesListener = (V2rayServicesListener) targetService;
+            appContext = targetService.getApplicationContext();
             Libv2ray.initCoreEnv(getUserAssetsPath(targetService.getApplicationContext()), "");
+            isCoreEnvInitialized = true;
 
             // Register Android VPN socket protector with libv2ray (Go)
             Libv2ray.useProtector(new V2RayProtector() {
@@ -181,18 +235,17 @@ public final class V2rayCoreManager {
     }
 
     public boolean startCore(final V2rayConfig v2rayConfig) {
-        makeDurationTimer(v2rayServicesListener.getService().getApplicationContext(),
-                v2rayConfig.ENABLE_TRAFFIC_STATICS);
         V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTING;
         if (!isLibV2rayCoreInitialized) {
             Log.e(V2rayCoreManager.class.getSimpleName(),
                     "startCore failed => LibV2rayCore should be initialize before start.");
             return false;
         }
-        if (isV2rayCoreRunning()) {
-            stopCore();
-        }
+        coreLock.lock();
         try {
+            if (isV2rayCoreRunning()) {
+                stopCoreInternal();
+            }
             if (coreController == null) {
                 Log.e(V2rayCoreManager.class.getSimpleName(), "startCore failed => coreController is null.");
                 return false;
@@ -205,7 +258,7 @@ public final class V2rayCoreManager {
                 Libv2ray.setProtectorServer(server, false);
             } catch (Exception ignored) {
             }
-            coreController.startLoop(v2rayConfig.V2RAY_FULL_JSON_CONFIG, 0);
+            coreController.startLoop(v2rayConfig.V2RAY_FULL_JSON_CONFIG);
             V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTED;
             if (isV2rayCoreRunning()) {
                 // Always try to show notification, but handle failures gracefully
@@ -215,11 +268,26 @@ public final class V2rayCoreManager {
         } catch (Exception e) {
             Log.e(V2rayCoreManager.class.getSimpleName(), "startCore failed =>", e);
             return false;
+        } finally {
+            coreLock.unlock();
         }
+        // Start timer AFTER lock is released so queryStats won't race with startLoop
+        makeDurationTimer(v2rayServicesListener.getService().getApplicationContext(),
+                v2rayConfig.ENABLE_TRAFFIC_STATICS);
         return true;
     }
 
     public void stopCore() {
+        coreLock.lock();
+        try {
+            stopCoreInternal();
+        } finally {
+            coreLock.unlock();
+        }
+    }
+
+    /** Internal stop without acquiring lock - caller must hold coreLock */
+    private void stopCoreInternal() {
         try {
             // Safely cancel notification - handle cases where service might be null
             if (v2rayServicesListener != null && v2rayServicesListener.getService() != null) {
@@ -418,17 +486,29 @@ public final class V2rayCoreManager {
     }
 
     public Long getConnectedV2rayServerDelay() {
+        coreLock.lock();
         try {
             if (coreController == null)
                 return -1L;
             return coreController.measureDelay(AppConfigs.DELAY_URL);
         } catch (Exception e) {
             return -1L;
+        } finally {
+            coreLock.unlock();
         }
     }
 
     public Long getV2rayServerDelay(final String config, final String url) {
+        // Ensure Go runtime is initialized before calling measureOutboundDelay.
+        // On first app launch, pings can fire before VPN service creates (setUpListener),
+        // calling into uninitialized Go code → SIGSEGV.
+        ensureCoreEnvInitialized();
+        coreLock.lock();
         try {
+            // If core is currently running (user connected), skip ping to avoid conflict
+            if (isV2rayCoreRunning()) {
+                return -1L;
+            }
             try {
                 JSONObject config_json = new JSONObject(config);
                 JSONObject new_routing_json = config_json.getJSONObject("routing");
@@ -443,6 +523,8 @@ public final class V2rayCoreManager {
         } catch (Exception e) {
             Log.e("getV2rayServerDelayCore", e.toString());
             return -1L;
+        } finally {
+            coreLock.unlock();
         }
     }
 

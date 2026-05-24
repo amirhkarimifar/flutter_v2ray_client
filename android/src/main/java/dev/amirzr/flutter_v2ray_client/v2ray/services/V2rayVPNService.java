@@ -15,7 +15,6 @@ import dev.amirzr.flutter_v2ray_client.v2ray.utils.AppConfigs;
 import dev.amirzr.flutter_v2ray_client.v2ray.utils.V2rayConfig;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -23,12 +22,16 @@ import java.io.FileDescriptor;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class V2rayVPNService extends VpnService implements V2rayServicesListener {
+    private static final String TAG = "V2rayVPNService";
     private ParcelFileDescriptor mInterface;
     private Process process;
     private V2rayConfig v2rayConfig;
-    private boolean isRunning = true;
+    private volatile boolean isRunning = false;
+    // Guard against concurrent/double cleanup — once set, all cleanup paths are no-ops
+    private final AtomicBoolean isCleaning = new AtomicBoolean(false);
 
     @Override
     public void onCreate() {
@@ -40,84 +43,118 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
     public int onStartCommand(Intent intent, int flags, int startId) {
         // Handle null intent case - can happen when service is restarted by system
         if (intent == null) {
-            Log.w("V2rayVPNService", "onStartCommand called with null intent, stopping service");
-            this.onDestroy();
+            Log.w(TAG, "onStartCommand called with null intent, stopping service");
+            stopSelf();
             return START_NOT_STICKY;
         }
 
-        AppConfigs.V2RAY_SERVICE_COMMANDS startCommand = (AppConfigs.V2RAY_SERVICE_COMMANDS) intent
-                .getSerializableExtra("COMMAND");
+        AppConfigs.V2RAY_SERVICE_COMMANDS startCommand = null;
+        try {
+            startCommand = (AppConfigs.V2RAY_SERVICE_COMMANDS) intent.getSerializableExtra("COMMAND");
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to parse COMMAND from intent", e);
+        }
 
         // Handle null command case
         if (startCommand == null) {
-            Log.w("V2rayVPNService", "No command found in intent, stopping service");
-            this.onDestroy();
+            Log.w(TAG, "No command found in intent, stopping service");
+            stopSelf();
             return START_NOT_STICKY;
         }
 
-        if (startCommand.equals(AppConfigs.V2RAY_SERVICE_COMMANDS.START_SERVICE)) {
-            v2rayConfig = (V2rayConfig) intent.getSerializableExtra("V2RAY_CONFIG");
-            if (v2rayConfig == null) {
-                Log.w("V2rayVPNService", "V2RAY_CONFIG is null, cannot start service");
-                this.onDestroy();
-                return START_NOT_STICKY;
-            }
-            if (V2rayCoreManager.getInstance().isV2rayCoreRunning()) {
-                V2rayCoreManager.getInstance().stopCore();
-            }
-            if (V2rayCoreManager.getInstance().startCore(v2rayConfig)) {
-                Log.i("V2rayVPNService", "onStartCommand success => v2ray core started.");
-            } else {
-                Log.e("V2rayVPNService", "Failed to start v2ray core");
-                this.onDestroy();
-                return START_NOT_STICKY;
-            }
-        } else if (startCommand.equals(AppConfigs.V2RAY_SERVICE_COMMANDS.STOP_SERVICE)) {
-            V2rayCoreManager.getInstance().stopCore();
-            AppConfigs.V2RAY_CONFIG = null;
-        } else if (startCommand.equals(AppConfigs.V2RAY_SERVICE_COMMANDS.MEASURE_DELAY)) {
-            new Thread(() -> {
-                try {
-                    String packageName = getPackageName();
-                    Intent sendB = new Intent(packageName + ".CONNECTED_V2RAY_SERVER_DELAY");
-                    sendB.setPackage(packageName);
-                    sendB.putExtra("DELAY", String.valueOf(V2rayCoreManager.getInstance().getConnectedV2rayServerDelay()));
-                    sendBroadcast(sendB);
-                } catch (Exception e) {
-                    Log.w("V2rayVPNService", "Failed to send delay broadcast", e);
+        try {
+            if (startCommand.equals(AppConfigs.V2RAY_SERVICE_COMMANDS.START_SERVICE)) {
+                v2rayConfig = (V2rayConfig) intent.getSerializableExtra("V2RAY_CONFIG");
+                if (v2rayConfig == null) {
+                    Log.w(TAG, "V2RAY_CONFIG is null, cannot start service");
+                    stopSelf();
+                    return START_NOT_STICKY;
                 }
-            }, "MEASURE_CONNECTED_V2RAY_SERVER_DELAY").start();
-        } else {
-            Log.w("V2rayVPNService", "Unknown command received, stopping service");
-            this.onDestroy();
+                // startCore() handles stopping any existing core atomically under the lock
+                if (V2rayCoreManager.getInstance().startCore(v2rayConfig)) {
+                    Log.i(TAG, "onStartCommand success => v2ray core started.");
+                } else {
+                    Log.e(TAG, "Failed to start v2ray core");
+                    stopSelf();
+                    return START_NOT_STICKY;
+                }
+            } else if (startCommand.equals(AppConfigs.V2RAY_SERVICE_COMMANDS.STOP_SERVICE)) {
+                V2rayCoreManager.getInstance().stopCore();
+                AppConfigs.V2RAY_CONFIG = null;
+            } else if (startCommand.equals(AppConfigs.V2RAY_SERVICE_COMMANDS.MEASURE_DELAY)) {
+                new Thread(() -> {
+                    try {
+                        String packageName = getPackageName();
+                        Intent sendB = new Intent(packageName + ".CONNECTED_V2RAY_SERVER_DELAY");
+                        sendB.setPackage(packageName);
+                        sendB.putExtra("DELAY",
+                                String.valueOf(V2rayCoreManager.getInstance().getConnectedV2rayServerDelay()));
+                        sendBroadcast(sendB);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to send delay broadcast", e);
+                    }
+                }, "MEASURE_CONNECTED_V2RAY_SERVER_DELAY").start();
+            } else {
+                Log.w(TAG, "Unknown command received, stopping service");
+                stopSelf();
+                return START_NOT_STICKY;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error handling command: " + startCommand, e);
+            stopSelf();
             return START_NOT_STICKY;
         }
         return START_STICKY;
     }
 
-    private void stopAllProcess() {
+    /**
+     * Single cleanup method — all shutdown paths funnel here.
+     * AtomicBoolean ensures it only runs once, even if called from
+     * multiple threads (onDestroy, onRevoke, stopService, etc.).
+     */
+    private void cleanup() {
+        if (!isCleaning.compareAndSet(false, true)) {
+            // Another thread is already cleaning up
+            return;
+        }
+        Log.i(TAG, "cleanup: starting resource teardown");
+        isRunning = false;
+
+        // 1. Stop the V2ray core
+        try {
+            V2rayCoreManager.getInstance().stopCore();
+        } catch (Exception e) {
+            Log.w(TAG, "cleanup: error stopping V2ray core", e);
+        }
+
+        // 2. Stop foreground service and remove notification
         try {
             stopForeground(true);
         } catch (Exception e) {
-            Log.w("V2rayVPNService", "stopForeground failed (service may not be in foreground)", e);
-        }
-        isRunning = false;
-        if (process != null) {
-            process.destroy();
-        }
-        V2rayCoreManager.getInstance().stopCore();
-        try {
-            stopSelf();
-        } catch (Exception e) {
-            // ignore
-            Log.e("CANT_STOP", "SELF");
-        }
-        try {
-            mInterface.close();
-        } catch (Exception e) {
-            // ignored
+            Log.w(TAG, "cleanup: stopForeground failed", e);
         }
 
+        // 3. Destroy tun2socks process
+        try {
+            Process p = process;
+            process = null;
+            if (p != null) {
+                p.destroy();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "cleanup: error destroying tun2socks process", e);
+        }
+
+        // 4. Close VPN interface
+        try {
+            ParcelFileDescriptor pfd = mInterface;
+            mInterface = null;
+            if (pfd != null) {
+                pfd.close();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "cleanup: error closing VPN interface", e);
+        }
     }
 
     private void setup() {
@@ -134,11 +171,15 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
             builder.addRoute("0.0.0.0", 0);
         } else {
             for (String subnet : v2rayConfig.BYPASS_SUBNETS) {
-                String[] parts = subnet.split("/");
-                if (parts.length == 2) {
-                    String address = parts[0];
-                    int prefixLength = Integer.parseInt(parts[1]);
-                    builder.addRoute(address, prefixLength);
+                try {
+                    String[] parts = subnet.split("/");
+                    if (parts.length == 2) {
+                        String address = parts[0];
+                        int prefixLength = Integer.parseInt(parts[1]);
+                        builder.addRoute(address, prefixLength);
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "setup: invalid bypass subnet: " + subnet, e);
                 }
             }
         }
@@ -147,7 +188,7 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                 try {
                     builder.addDisallowedApplication(v2rayConfig.BLOCKED_APPS.get(i));
                 } catch (Exception e) {
-                    // ignore
+                    // ignore — app not installed
                 }
             }
         }
@@ -188,7 +229,9 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
             }
         }
         try {
-            mInterface.close();
+            if (mInterface != null) {
+                mInterface.close();
+            }
         } catch (Exception e) {
             // ignore
         }
@@ -198,16 +241,21 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
 
         try {
             mInterface = builder.establish();
+            if (mInterface == null) {
+                Log.e(TAG, "setup: VPN interface is null — VPN permission may have been revoked");
+                stopSelf();
+                return;
+            }
             isRunning = true;
             runTun2socks();
         } catch (Exception e) {
-            Log.e("VPN_SERVICE", "Failed to establish VPN interface", e);
-            stopAllProcess();
+            Log.e(TAG, "setup: failed to establish VPN interface", e);
+            stopSelf();
         }
-
     }
 
     private void runTun2socks() {
+        if (!isRunning) return;
         ArrayList<String> cmd = new ArrayList<>(
                 Arrays.asList(new File(getApplicationInfo().nativeLibraryDir, "libtun2socks.so").getAbsolutePath(),
                         "--netif-ipaddr", "26.26.26.2",
@@ -223,36 +271,54 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
             process = processBuilder.directory(getApplicationContext().getFilesDir()).start();
             new Thread(() -> {
                 try {
-                    process.waitFor();
+                    Process p = process;
+                    if (p != null) {
+                        p.waitFor();
+                    }
                     if (isRunning) {
                         runTun2socks();
                     }
                 } catch (InterruptedException e) {
-                    // ignore
+                    // ignore — thread interrupted during shutdown
                 }
             }, "Tun2socks_Thread").start();
             sendFileDescriptor();
         } catch (Exception e) {
-            Log.e("VPN_SERVICE", "FAILED=>", e);
-            this.onDestroy();
+            Log.e(TAG, "runTun2socks: failed to start tun2socks", e);
+            stopSelf();
         }
     }
 
     private void sendFileDescriptor() {
+        final ParcelFileDescriptor pfd = mInterface;
+        if (pfd == null) {
+            Log.e(TAG, "sendFileDescriptor: mInterface is null, cannot send fd");
+            return;
+        }
+        final FileDescriptor tunFd;
+        try {
+            tunFd = pfd.getFileDescriptor();
+        } catch (Exception e) {
+            Log.e(TAG, "sendFileDescriptor: failed to get file descriptor", e);
+            return;
+        }
+        if (tunFd == null || !tunFd.valid()) {
+            Log.e(TAG, "sendFileDescriptor: tunFd is invalid");
+            return;
+        }
         String localSocksFile = new File(getApplicationContext().getFilesDir(), "sock_path").getAbsolutePath();
-        FileDescriptor tunFd = mInterface.getFileDescriptor();
         new Thread(() -> {
             int tries = 0;
-            while (true) {
+            while (isRunning && tries <= 5) {
                 try {
                     Thread.sleep(50L * tries);
                     LocalSocket clientLocalSocket = new LocalSocket();
                     clientLocalSocket
                             .connect(new LocalSocketAddress(localSocksFile, LocalSocketAddress.Namespace.FILESYSTEM));
                     if (!clientLocalSocket.isConnected()) {
-                        Log.e("SOCK_FILE", "Unable to connect to localSocksFile [" + localSocksFile + "]");
+                        Log.w(TAG, "sendFd: unable to connect to sock file [" + localSocksFile + "]");
                     } else {
-                        Log.e("SOCK_FILE", "connected to sock file [" + localSocksFile + "]");
+                        Log.d(TAG, "sendFd: connected to sock file [" + localSocksFile + "]");
                     }
                     OutputStream clientOutStream = clientLocalSocket.getOutputStream();
                     clientLocalSocket.setFileDescriptorsForSend(new FileDescriptor[] { tunFd });
@@ -262,9 +328,7 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                     clientLocalSocket.close();
                     break;
                 } catch (Exception e) {
-                    Log.e(V2rayVPNService.class.getSimpleName(), "sendFd failed =>", e);
-                    if (tries > 5)
-                        break;
+                    Log.w(TAG, "sendFd: attempt " + tries + " failed", e);
                     tries += 1;
                 }
             }
@@ -273,51 +337,20 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
 
     @Override
     public void onDestroy() {
-        Log.i("V2rayVPNService", "onDestroy called - cleaning up resources");
-        isRunning = false;
-        
-        // Stop the V2ray core
+        Log.i(TAG, "onDestroy called");
+        cleanup();
         try {
-            if (V2rayCoreManager.getInstance().isV2rayCoreRunning()) {
-                V2rayCoreManager.getInstance().stopCore();
-            }
+            super.onDestroy();
         } catch (Exception e) {
-            Log.e("V2rayVPNService", "Error stopping V2ray core in onDestroy", e);
+            Log.w(TAG, "super.onDestroy() threw", e);
         }
-        
-        // Stop foreground service and remove notification
-        try {
-            stopForeground(true);
-        } catch (Exception e) {
-            Log.e("V2rayVPNService", "Error stopping foreground in onDestroy", e);
-        }
-        
-        // Destroy tun2socks process
-        try {
-            if (process != null) {
-                process.destroy();
-                process = null;
-            }
-        } catch (Exception e) {
-            Log.e("V2rayVPNService", "Error destroying process in onDestroy", e);
-        }
-        
-        // Close VPN interface
-        try {
-            if (mInterface != null) {
-                mInterface.close();
-                mInterface = null;
-            }
-        } catch (Exception e) {
-            Log.e("V2rayVPNService", "Error closing VPN interface in onDestroy", e);
-        }
-        
-        super.onDestroy();
     }
 
     @Override
     public void onRevoke() {
-        stopAllProcess();
+        Log.i(TAG, "onRevoke called — VPN permission revoked");
+        cleanup();
+        stopSelf();
     }
 
     @Override
@@ -337,6 +370,7 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
 
     @Override
     public void stopService() {
-        stopAllProcess();
+        cleanup();
+        stopSelf();
     }
 }

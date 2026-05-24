@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0]
+
+### Fixed
+- **Native crash prevention**: Added `ReentrantLock` to serialize all native xray core operations (`startLoop`, `stopLoop`, `measureOutboundDelay`). Concurrent access to `libv2jni.so` no longer causes SIGSEGV.
+- **FakeDNS IPv6 crash**: Added IPv6 pool (`fc00::/18`) to FakeDNS config — missing pool caused nil pointer panic in Go xray-core on AAAA queries.
+- **Ping before VPN service**: `ensureCoreEnvInitialized()` lazily initializes the Go runtime for delay measurement, preventing crashes when pings fire before VPN service starts.
+- **Timer leak**: Cancel existing `countDownTimer` before creating a new one in `makeDurationTimer()`.
+
+### Changed
+- **Sniffing `metadataOnly`**: Set to `true` for better performance (sniff protocol without buffering full payload).
+- **Core API update**: `startLoop()` call updated for new libv2ray signature (removed deprecated second parameter).
+- **Stop/start ordering**: `stopCore` now executes under lock; timer starts after lock release to avoid queryStats race.
+- **Stats collection**: Uses `tryLock()` in timer tick to skip stats when core is busy rather than blocking.
+
+### Added
+- `setAppContext()` on `V2rayCoreManager` for lazy Go core init from `V2rayController.init()`.
+- Skip ping when core is actively running (returns -1) to avoid conflict with live VPN connection.
+
 ## [3.2.0]
 
 This release updates the embedded **Xray core to v26.4.17** and refreshes the Android `libv2ray` AAR and `V2rayCoreManager` integration. The items below follow upstream Xray changes since the **v25.10.15** line.

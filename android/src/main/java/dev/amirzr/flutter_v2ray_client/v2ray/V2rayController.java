@@ -24,6 +24,8 @@ public class V2rayController {
         Utilities.copyAssets(context);
         AppConfigs.APPLICATION_ICON = app_icon;
         AppConfigs.APPLICATION_NAME = app_name;
+        // Store app context so Go core can be lazily initialized for ping-only usage
+        V2rayCoreManager.getInstance().setAppContext(context);
 
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
