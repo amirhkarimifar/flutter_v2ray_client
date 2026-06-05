@@ -21,6 +21,7 @@ import dev.amirzr.flutter_v2ray_client.v2ray.V2rayReceiver;
 import dev.amirzr.flutter_v2ray_client.v2ray.utils.AppConfigs;
 import dev.amirzr.flutter_v2ray_client.v2ray.utils.LogcatManager;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -81,6 +82,26 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                     }
                 } catch (Exception e) {
                     Log.e("FlutterV2rayPlugin", "Failed to register broadcast receiver", e);
+                }
+
+                // Emit current state immediately so the UI syncs without waiting for the next timer tick.
+                // This fixes the "server status disappears on app open" issue when the app resumes
+                // while the VPN service is still connected.
+                try {
+                    AppConfigs.V2RAY_STATES currentState = V2rayController.getConnectionState();
+                    String stateName = currentState.name();
+                    // Strip "V2RAY_" prefix to match the format V2rayReceiver uses (e.g. "CONNECTED")
+                    String stateShort = stateName.startsWith("V2RAY_") ? stateName.substring(6) : stateName;
+                    ArrayList<String> initialStatus = new ArrayList<>();
+                    initialStatus.add("00:00:00"); // duration
+                    initialStatus.add("0");         // upload speed
+                    initialStatus.add("0");         // download speed
+                    initialStatus.add("0");         // upload traffic
+                    initialStatus.add("0");         // download traffic
+                    initialStatus.add(stateShort);  // state
+                    events.success(initialStatus);
+                } catch (Exception e) {
+                    Log.w("FlutterV2rayPlugin", "Could not emit initial state", e);
                 }
             }
 
