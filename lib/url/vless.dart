@@ -71,10 +71,10 @@ class VlessURL extends V2RayURL {
                 {
                   'id': uri.userInfo,
                   'alterId': null,
-                  'security': security,
                   'level': level,
                   'encryption': uri.queryParameters['encryption'] ?? 'none',
-                  'flow': uri.queryParameters['flow'] ?? '',
+                  // null when absent → removed by removeNulls; empty string caused v26 rejection
+                  'flow': uri.queryParameters['flow'],
                 }
               ]
             }
