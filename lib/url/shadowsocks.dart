@@ -46,7 +46,6 @@ class ShadowSocksURL extends V2RayURL {
       );
       super.populateTlsSettings(
         streamSecurity: uri.queryParameters['security'] ?? '',
-        allowInsecure: allowInsecure,
         sni: uri.queryParameters['sni'] ?? sni,
         fingerprint: streamSetting['tlsSettings']?['fingerprint'],
         alpns: uri.queryParameters['alpn'],

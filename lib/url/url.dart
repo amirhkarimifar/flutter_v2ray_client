@@ -306,7 +306,6 @@ abstract class V2RayURL {
   /// [spiderX] is the spiderX for reality.
   void populateTlsSettings({
     required String? streamSecurity,
-    required bool allowInsecure,
     required String? sni,
     required String? fingerprint,
     required String? alpns,
@@ -316,7 +315,6 @@ abstract class V2RayURL {
   }) {
     streamSetting['security'] = streamSecurity;
     final tlsSetting = <String, dynamic>{
-      'allowInsecure': allowInsecure,
       'serverName': sni,
       'alpn': alpns == '' ? null : alpns?.split(','),
       'minVersion': null,

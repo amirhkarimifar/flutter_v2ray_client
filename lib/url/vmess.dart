@@ -41,7 +41,6 @@ class VmessURL extends V2RayURL {
             : streamSetting['tlsSettings']?['fingerprint'];
     super.populateTlsSettings(
       streamSecurity: rawConfig['tls'],
-      allowInsecure: allowInsecure,
       sni: sni,
       fingerprint: fingerprint,
       alpns: rawConfig['alpn'],

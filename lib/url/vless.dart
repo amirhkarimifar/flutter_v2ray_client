@@ -31,7 +31,6 @@ class VlessURL extends V2RayURL {
     );
     super.populateTlsSettings(
       streamSecurity: uri.queryParameters['security'] ?? '',
-      allowInsecure: allowInsecure,
       sni: uri.queryParameters['sni'] ?? sni,
       fingerprint: uri.queryParameters['fp'] ??
           streamSetting['tlsSettings']?['fingerprint'],

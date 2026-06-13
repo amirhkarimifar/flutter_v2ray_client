@@ -33,7 +33,6 @@ class TrojanURL extends V2RayURL {
 
       super.populateTlsSettings(
         streamSecurity: uri.queryParameters['security'] ?? 'tls',
-        allowInsecure: allowInsecure,
         sni: uri.queryParameters['sni'] ?? sni,
         fingerprint:
             streamSetting['tlsSettings']?['fingerprint'] ?? 'randomized',
@@ -46,7 +45,6 @@ class TrojanURL extends V2RayURL {
     } else {
       super.populateTlsSettings(
         streamSecurity: 'tls',
-        allowInsecure: allowInsecure,
         sni: '',
         fingerprint:
             streamSetting['tlsSettings']?['fingerprint'] ?? 'randomized',
