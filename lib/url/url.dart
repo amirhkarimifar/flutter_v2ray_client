@@ -56,9 +56,13 @@ abstract class V2RayURL {
 
   /// Log configuration.
   Map<String, dynamic> log = {
-    'access': '',
+    // Disable the per-connection access log: it records every destination a
+    // user connects to into logcat (visible in the in-app Debug screen and to
+    // any logcat reader) — a privacy leak and pure noise. 'warning' loglevel
+    // still surfaces real TLS/connection errors for diagnostics.
+    'access': 'none',
     'error': '',
-    'loglevel': 'error',
+    'loglevel': 'warning',
     'dnsLog': false,
   };
 
@@ -326,9 +330,15 @@ abstract class V2RayURL {
       'disableSystemRoot': null,
       'enableSessionResumption': null,
       'show': false,
-      'publicKey': publicKey,
-      'shortId': shortId,
-      'spiderX': spiderX,
+      // Reality-only fields. They MUST be absent from a plain-TLS block:
+      // the AndroidLibXrayLite fork treats the presence of publicKey as a
+      // REALITY outbound, which turns plain TLS into a broken REALITY
+      // handshake (TLS connects, inner stream reset immediately). Empty
+      // strings survive removeNulls(), so coerce them to null here so they
+      // are stripped — making the emitted tlsSettings identical to V2Box's.
+      'publicKey': (publicKey == null || publicKey == '') ? null : publicKey,
+      'shortId': (shortId == null || shortId == '') ? null : shortId,
+      'spiderX': (spiderX == null || spiderX == '') ? null : spiderX,
     };
     if (streamSecurity == 'tls') {
       streamSetting['realitySettings'] = null;

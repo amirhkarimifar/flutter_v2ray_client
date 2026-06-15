@@ -53,9 +53,15 @@ public class LogcatManager {
             commandSet.add("-v");
             commandSet.add("time"); // Time format
             commandSet.add("-s"); // Silent mode - only show specified tags
-            // Filter for V2Ray related logs
+            // Filter for V2Ray related logs.
+            // Includes native-crash tags (libc, DEBUG, Go, linker) so that a
+            // crash inside libv2jni.so is actually visible: without these, a
+            // native SIGSEGV / "dlopen failed" / Go fatal produces only empty
+            // "beginning of crash" buffer headers, hiding why some devices
+            // fail to connect.
             commandSet.add("GoLog,tun2socks," + packageName
-                    + ",AndroidRuntime,System.err,V2rayCoreManager,FlutterV2rayPlugin");
+                    + ",AndroidRuntime,System.err,V2rayCoreManager,FlutterV2rayPlugin"
+                    + ",libc,DEBUG,Go,linker");
 
             Process process = Runtime.getRuntime().exec(commandSet.toArray(new String[0]));
             BufferedReader bufferedReader = new BufferedReader(
