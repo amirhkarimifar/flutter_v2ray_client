@@ -19,7 +19,14 @@ on:
         description: "hev-socks5-tunnel release tag"
         required: true
         default: "2.9.0"
-  pull_request:
+  # Runs on a plain push, so no pull request is needed to get a build. Opening a
+  # PR from a fork defaults its base to the upstream repository, which would run
+  # this in someone else's project and expose the branch there.
+  push:
+    branches:
+      - main
+      - "feat/**"
+      - "fix/**"
     paths:
       - "ios/**"
       - "lib/**"
