@@ -65,11 +65,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         // Cap the Go heap before the core allocates anything.
         XraySetMemoryLimit(Default.memoryLimitMegabytes)
 
-        do {
-            try XrayStart(xrayConfig, logHandle)
-        } catch {
-            log("Xray failed to start: \(error.localizedDescription)")
-            throw TunnelError.coreStartFailed(error.localizedDescription)
+        // gomobile emits plain C functions that report failure through a Bool
+        // result and an NSError out-parameter, so these are not Swift throwing
+        // calls despite the Go side returning an error.
+        var startError: NSError?
+        guard XrayStart(xrayConfig, logHandle, &startError) else {
+            let reason = startError?.localizedDescription ?? "unknown error"
+            log("Xray failed to start: \(reason)")
+            throw TunnelError.coreStartFailed(reason)
         }
 
         log("Xray \(XrayVersion()) started, SOCKS inbound on 127.0.0.1:\(socksPort)")
@@ -82,10 +85,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         tunnelStarted = false
 
         Tun2Socks.quit()
-        do {
-            try XrayStop()
-        } catch {
-            log("Xray failed to stop cleanly: \(error.localizedDescription)")
+
+        var stopError: NSError?
+        if !XrayStop(&stopError) {
+            log("Xray failed to stop cleanly: \(stopError?.localizedDescription ?? "unknown error")")
         }
         logHandle?.flush()
     }
@@ -232,15 +235,23 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             // A delay probe makes a network round trip, so keep it off the
             // provider's queue: blocking here stalls every other message.
             DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let delay = try XrayMeasureDelay(url, request.timeoutMillis ?? 10_000)
+                // gomobile renders a Go (int64, error) return as a Bool result
+                // with the value and the error as out-parameters.
+                var measured: Int64 = -1
+                var error: NSError?
+                let ok = XrayMeasureDelay(url, request.timeoutMillis ?? 10_000, &measured, &error)
+
+                if ok {
                     completionHandler?(
-                        TunnelIPC.encode(TunnelIPC.Response(delayMillis: Int(delay)))
+                        TunnelIPC.encode(TunnelIPC.Response(delayMillis: Int(measured)))
                     )
-                } catch {
+                } else {
                     completionHandler?(
                         TunnelIPC.encode(
-                            TunnelIPC.Response(delayMillis: -1, error: error.localizedDescription)
+                            TunnelIPC.Response(
+                                delayMillis: -1,
+                                error: error?.localizedDescription ?? "delay probe failed"
+                            )
                         )
                     )
                 }

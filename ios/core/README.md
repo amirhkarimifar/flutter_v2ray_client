@@ -53,14 +53,20 @@ gomobile prefixes everything with the package name, so Swift sees:
 | `XrayVersion()` | Core version string |
 | `XrayIsRunning()` | Whether an instance is started |
 | `XraySetMemoryLimit(_ megabytes: Int)` | Cap the heap under the jetsam budget; call before `XrayStart` |
-| `XraySetAssetPath(_ path: String) throws` | Point at geoip/geosite — only if a config needs them |
-| `XrayStart(_ config: Data, _ logger: XrayLogger?) throws` | Start the instance |
-| `XrayStop() throws` | Stop it; safe to call when nothing runs |
-| `XrayMeasureDelay(_ url: String, _ timeoutMillis: Int) throws -> Int64` | Delay through the running instance |
-| `XrayMeasureOutboundDelay(_ config: Data, _ url: String, _ timeoutMillis: Int) throws -> Int64` | Delay through a throwaway instance; needs no tunnel, so it runs in the app process |
+| `XraySetAssetPath(_ path: String?, _ error: NSErrorPointer) -> Bool` | Point at geoip/geosite — only if a config needs them |
+| `XrayStart(_ config: Data?, _ logger: XrayLogger?, _ error: NSErrorPointer) -> Bool` | Start the instance |
+| `XrayStop(_ error: NSErrorPointer) -> Bool` | Stop it; safe to call when nothing runs |
+| `XrayMeasureDelay(_ url: String?, _ timeoutMillis: Int, _ ret0_: UnsafeMutablePointer<Int64>?, _ error: NSErrorPointer) -> Bool` | Delay through the running instance |
+| `XrayMeasureOutboundDelay(_ config: Data?, _ url: String?, _ timeoutMillis: Int, _ ret0_: UnsafeMutablePointer<Int64>?, _ error: NSErrorPointer) -> Bool` | Delay through a throwaway instance; needs no tunnel, so it runs in the app process |
 
 `XrayLogger` is a protocol with `logInput(_ line: String)`; the extension
 implements it to forward core logs to the host app.
+
+**These are C functions, not Objective-C methods**, so Swift does not import
+them as throwing even though the Go side returns an `error`. A Go `error` return
+becomes a `Bool` result plus an `NSError` out-parameter, and a Go `(int64,
+error)` return adds the value as a further out-parameter. Check the `Bool`;
+ignoring it silently treats a failure as success.
 
 ## Memory
 

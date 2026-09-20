@@ -247,13 +247,14 @@ public class FlutterV2rayPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
         let timeout = (arguments["timeoutMillis"] as? Int) ?? 10_000
         DispatchQueue.global(qos: .userInitiated).async {
-            var delay: Int64 = -1
-            do {
-                delay = try XrayMeasureOutboundDelay(configData, url, timeout)
-            } catch {
-                delay = -1
-            }
-            DispatchQueue.main.async { result(Int(delay)) }
+            // gomobile renders a Go (int64, error) return as a Bool result with
+            // the value and the error as out-parameters, so this cannot be
+            // called as a Swift throwing function.
+            var measured: Int64 = -1
+            var error: NSError?
+            let ok = XrayMeasureOutboundDelay(configData, url, timeout, &measured, &error)
+            let delay = ok ? Int(measured) : -1
+            DispatchQueue.main.async { result(delay) }
         }
     }
 
