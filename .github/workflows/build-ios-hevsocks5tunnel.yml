@@ -1,0 +1,160 @@
+name: Build HevSocks5Tunnel.xcframework (iOS)
+
+# Produces the tun2socks library the packet tunnel links against. It moves IP
+# packets between the utun interface and Xray's SOCKS inbound.
+#
+# Built here rather than taken from a third-party Swift package so the plugin
+# owns its whole supply chain: hev-socks5-tunnel is MIT, and this workflow
+# records the exact upstream commit it was built from.
+#
+# Download the artifact from the finished run and unzip it into ios/ of this
+# plugin (ios/HevSocks5Tunnel.xcframework).
+
+on:
+  workflow_call:
+    inputs:
+      hev_tag:
+        type: string
+        required: false
+        default: "2.9.0"
+      ios_version:
+        type: string
+        required: false
+        default: "15.0"
+  workflow_dispatch:
+    inputs:
+      hev_tag:
+        description: "hev-socks5-tunnel release tag"
+        required: true
+        default: "2.9.0"
+      ios_version:
+        description: "Minimum iOS version"
+        required: true
+        default: "15.0"
+  push:
+    tags:
+      - "ios-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout hev-socks5-tunnel
+        uses: actions/checkout@v4
+        with:
+          repository: heiher/hev-socks5-tunnel
+          ref: ${{ inputs.hev_tag || '2.9.0' }}
+          submodules: recursive
+          path: hev
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode.app
+
+      - name: Build device slice (arm64)
+        working-directory: hev
+        run: |
+          make clean
+          make PP="xcrun --sdk iphoneos --toolchain iphoneos clang" \
+               CC="xcrun --sdk iphoneos --toolchain iphoneos clang" \
+               CFLAGS="-arch arm64 -mios-version-min=${{ inputs.ios_version || '15.0' }}" \
+               LFLAGS="-arch arm64 -mios-version-min=${{ inputs.ios_version || '15.0' }} -Wl,-Bsymbolic-functions" \
+               static
+          mkdir -p "$GITHUB_WORKSPACE/device"
+          # The tunnel and its vendored lwIP, yaml and task-system archives have
+          # to be merged, or the extension fails to link with missing symbols.
+          libtool -static -o "$GITHUB_WORKSPACE/device/libhev-socks5-tunnel.a" \
+                  bin/libhev-socks5-tunnel.a \
+                  third-part/lwip/bin/liblwip.a \
+                  third-part/yaml/bin/libyaml.a \
+                  third-part/hev-task-system/bin/libhev-task-system.a
+
+      - name: Build simulator stub (arm64 + x86_64)
+        # A packet tunnel provider does not run in the simulator at all, and the
+        # real library does not build against the simulator SDK. A stub that
+        # fails cleanly keeps `flutter run` on a simulator linking, while the
+        # tunnel itself is exercised on device.
+        run: |
+          mkdir -p stub sim
+          cat > stub/hev-stub.c <<'STUB'
+          #include <stddef.h>
+
+          /* Simulator stub: NEPacketTunnelProvider is device-only. */
+
+          int hev_socks5_tunnel_main (const char *config_path, int tun_fd)
+          {
+              (void)config_path; (void)tun_fd; return -1;
+          }
+
+          int hev_socks5_tunnel_main_from_file (const char *config_path, int tun_fd)
+          {
+              (void)config_path; (void)tun_fd; return -1;
+          }
+
+          int hev_socks5_tunnel_main_from_str (const unsigned char *config_str,
+                                               unsigned int config_len, int tun_fd)
+          {
+              (void)config_str; (void)config_len; (void)tun_fd; return -1;
+          }
+
+          void hev_socks5_tunnel_quit (void) { }
+
+          void hev_socks5_tunnel_stats (size_t *tx_packets, size_t *tx_bytes,
+                                        size_t *rx_packets, size_t *rx_bytes)
+          {
+              if (tx_packets) *tx_packets = 0;
+              if (tx_bytes)   *tx_bytes   = 0;
+              if (rx_packets) *rx_packets = 0;
+              if (rx_bytes)   *rx_bytes   = 0;
+          }
+          STUB
+          for ARCH in arm64 x86_64; do
+            xcrun --sdk iphonesimulator clang -c stub/hev-stub.c \
+              -arch "$ARCH" \
+              -mios-simulator-version-min="${{ inputs.ios_version || '15.0' }}" \
+              -o "stub/hev-stub-$ARCH.o"
+            xcrun --sdk iphonesimulator ar rcs "stub/lib-$ARCH.a" "stub/hev-stub-$ARCH.o"
+          done
+          lipo -create -o sim/libhev-socks5-tunnel.a stub/lib-arm64.a stub/lib-x86_64.a
+
+      - name: Assemble xcframework
+        run: |
+          mkdir -p include
+          cp hev/src/hev-main.h include/hev-socks5-tunnel.h
+          cat > include/module.modulemap <<'MAP'
+          module HevSocks5Tunnel {
+              header "hev-socks5-tunnel.h"
+              export *
+          }
+          MAP
+          xcodebuild -create-xcframework \
+            -library device/libhev-socks5-tunnel.a -headers include \
+            -library sim/libhev-socks5-tunnel.a -headers include \
+            -output HevSocks5Tunnel.xcframework
+
+      - name: Record provenance
+        run: |
+          HEV_SHA=$(git -C hev rev-parse HEAD)
+          cat > HevSocks5Tunnel.xcframework/BUILD_INFO.txt <<INFO
+          HevSocks5Tunnel.xcframework
+          built: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          hev-socks5-tunnel tag:    ${{ inputs.hev_tag || '2.9.0' }}
+          hev-socks5-tunnel commit: ${HEV_SHA}
+          hev-socks5-tunnel source: https://github.com/heiher/hev-socks5-tunnel (MIT)
+          device slice:    real library, arm64
+          simulator slice: stub that returns -1 (packet tunnels are device-only)
+          min iOS:         ${{ inputs.ios_version || '15.0' }}
+          INFO
+          cat HevSocks5Tunnel.xcframework/BUILD_INFO.txt
+          echo "--- slices ---"
+          ls -1 HevSocks5Tunnel.xcframework
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HevSocks5Tunnel.xcframework-${{ inputs.hev_tag || '2.9.0' }}
+          path: HevSocks5Tunnel.xcframework
+          if-no-files-found: error
+          retention-days: 30

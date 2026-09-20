@@ -25,11 +25,15 @@ class V2ray {
   /// It receives a [V2RayStatus] object containing details like duration, speeds, and state.
   final void Function(V2RayStatus status) onStatusChanged;
 
-  /// Requests permission to use V2Ray features, such as VPN access on Android.
+  /// Requests permission to use V2Ray features, such as VPN access.
   /// Returns a [Future] that completes with true if permission is granted, otherwise false.
-  /// On non-Android platforms, it defaults to granting permission.
+  ///
+  /// On Android this triggers the `VpnService` consent dialog. On iOS it
+  /// installs the VPN profile, which is what makes the system show its own
+  /// permission sheet; [initialize] must have run first. Other platforms
+  /// default to granting permission.
   Future<bool> requestPermission() async {
-    if (Platform.isAndroid) {
+    if (Platform.isAndroid || Platform.isIOS) {
       return FlutterV2rayPlatform.instance.requestPermission();
     }
     return true;
@@ -38,15 +42,32 @@ class V2ray {
   /// Initializes the V2Ray client with notification settings and a status change callback.
   /// [notificationIconResourceType] specifies the type of the notification icon (e.g., 'mipmap').
   /// [notificationIconResourceName] specifies the name of the notification icon (e.g., 'ic_launcher').
+  ///
+  /// iOS runs the tunnel in a Network Extension, so it needs two more values:
+  /// [providerBundleIdentifier] is the packet tunnel extension's bundle
+  /// identifier, and [groupIdentifier] is the app group shared by the app and
+  /// that extension. Both are ignored on Android. See `ios/IOS_SETUP.md`.
+  ///
   /// Returns a [Future] that completes when initialization is done.
   Future<void> initialize({
     String notificationIconResourceType = 'mipmap',
     String notificationIconResourceName = 'ic_launcher',
+    String providerBundleIdentifier = '',
+    String groupIdentifier = '',
   }) async {
+    assert(
+      !Platform.isIOS ||
+          (providerBundleIdentifier.isNotEmpty && groupIdentifier.isNotEmpty),
+      'On iOS, initialize() requires providerBundleIdentifier and '
+      'groupIdentifier. See ios/IOS_SETUP.md.',
+    );
+
     await FlutterV2rayPlatform.instance.initializeV2Ray(
       onStatusChanged: onStatusChanged,
       notificationIconResourceType: notificationIconResourceType,
       notificationIconResourceName: notificationIconResourceName,
+      providerBundleIdentifier: providerBundleIdentifier,
+      groupIdentifier: groupIdentifier,
     );
   }
 

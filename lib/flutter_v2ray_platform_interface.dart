@@ -40,11 +40,17 @@ abstract class FlutterV2rayPlatform extends PlatformInterface {
   /// [onStatusChanged] is a callback that will be invoked when the V2Ray status changes.
   /// [notificationIconResourceType] specifies the type of the notification icon resource (e.g., 'mipmap').
   /// [notificationIconResourceName] specifies the name of the notification icon resource (e.g., 'ic_launcher').
+  /// [providerBundleIdentifier] is the bundle identifier of the iOS packet tunnel
+  /// extension. Required on iOS, ignored elsewhere.
+  /// [groupIdentifier] is the app group shared by the iOS app and its packet
+  /// tunnel extension. Required on iOS, ignored elsewhere.
   /// Returns a [Future] that completes when initialization is done.
   Future<void> initializeV2Ray({
     required void Function(V2RayStatus status) onStatusChanged,
     required String notificationIconResourceType,
     required String notificationIconResourceName,
+    String providerBundleIdentifier = '',
+    String groupIdentifier = '',
   }) {
     throw UnimplementedError('initializeV2Ray() has not been implemented.');
   }

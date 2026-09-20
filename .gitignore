@@ -81,3 +81,9 @@ example/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.j
 
 # Misc ignores
 coverage/
+
+# Built iOS binaries (produced by .github/workflows/build-ios-*.yml)
+ios/Xray.xcframework/
+ios/HevSocks5Tunnel.xcframework/
+ios/core/Xray.xcframework/
+ios/core/go.sum

@@ -18,6 +18,8 @@ class MethodChannelFlutterV2ray extends FlutterV2rayPlatform {
     required void Function(V2RayStatus status) onStatusChanged,
     required String notificationIconResourceType,
     required String notificationIconResourceName,
+    String providerBundleIdentifier = '',
+    String groupIdentifier = '',
   }) async {
     eventChannel.receiveBroadcastStream().distinct().cast().listen((event) {
       if (event != null) {
@@ -36,6 +38,8 @@ class MethodChannelFlutterV2ray extends FlutterV2rayPlatform {
       {
         'notificationIconResourceType': notificationIconResourceType,
         'notificationIconResourceName': notificationIconResourceName,
+        'providerBundleIdentifier': providerBundleIdentifier,
+        'groupIdentifier': groupIdentifier,
       },
     );
   }

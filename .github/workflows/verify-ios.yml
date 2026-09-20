@@ -1,0 +1,123 @@
+name: Verify iOS
+
+# Compiles the whole iOS side on a macOS runner, so the Swift and Go are checked
+# without a Mac on the developer's desk.
+#
+# What this does and does not prove:
+#   - proves: the Go builds, the Swift type-checks, the pod compiles into an app
+#   - does not prove: entitlements, profile installation, real tunnelling, or
+#     behaviour under the extension's memory cap. Those need a physical iPhone.
+
+on:
+  workflow_dispatch:
+    inputs:
+      xray_tag:
+        description: "Xray-core release tag"
+        required: true
+        default: "v26.2.6"
+      hev_tag:
+        description: "hev-socks5-tunnel release tag"
+        required: true
+        default: "2.9.0"
+  pull_request:
+    paths:
+      - "ios/**"
+      - "lib/**"
+      - ".github/workflows/verify-ios.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  xray:
+    name: Build Xray.xcframework
+    uses: ./.github/workflows/build-ios-xcframework.yml
+    with:
+      xray_tag: ${{ inputs.xray_tag || 'v26.2.6' }}
+
+  hev:
+    name: Build HevSocks5Tunnel.xcframework
+    uses: ./.github/workflows/build-ios-hevsocks5tunnel.yml
+    with:
+      hev_tag: ${{ inputs.hev_tag || '2.9.0' }}
+
+  extension:
+    name: Type-check packet tunnel extension
+    needs: [xray, hev]
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch frameworks
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*.xcframework-*"
+          path: frameworks
+          merge-multiple: false
+
+      - name: Locate device slices
+        id: slices
+        run: |
+          # Artifact directories are named after the artifact, and each contains
+          # the xcframework's contents. Find the arm64 device slice of each.
+          XRAY=$(find frameworks -type d -name "ios-arm64" -path "*Xray*" | head -1)
+          HEV=$(find frameworks -type d -name "ios-arm64" -path "*Hev*" | head -1)
+          if [ -z "$XRAY" ] || [ -z "$HEV" ]; then
+            echo "::error::Could not find the device slices"
+            find frameworks -maxdepth 3 -type d
+            exit 1
+          fi
+          echo "xray=${XRAY}" >> "$GITHUB_OUTPUT"
+          echo "hev=${HEV}" >> "$GITHUB_OUTPUT"
+          echo "Xray slice: ${XRAY}"
+          echo "Hev slice:  ${HEV}"
+
+      - name: Type-check
+        # The extension's sources import no Flutter symbols by design, so they
+        # can be checked on their own — no Xcode project needed.
+        run: |
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun --sdk iphoneos swiftc -typecheck \
+            -target arm64-apple-ios15.0 \
+            -sdk "$SDK" \
+            -F "${{ steps.slices.outputs.xray }}" \
+            -I "${{ steps.slices.outputs.hev }}/Headers" \
+            -Xcc -fmodule-map-file="${{ steps.slices.outputs.hev }}/Headers/module.modulemap" \
+            ios/Extension/PacketTunnelProvider.swift \
+            ios/Extension/Tun2Socks.swift \
+            ios/Extension/TunnelIPC.swift
+
+  app:
+    name: Build example app
+    needs: xray
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch Xray.xcframework
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "Xray.xcframework-*"
+          path: frameworks
+          merge-multiple: true
+
+      - name: Install framework where the podspec expects it
+        run: |
+          mkdir -p ios/Xray.xcframework
+          cp -R frameworks/. ios/Xray.xcframework/
+          ls -1 ios/Xray.xcframework
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build
+        working-directory: example
+        # Compiles the pod, which is the app-side half of the plugin:
+        # Classes/*.swift plus the shared Extension/TunnelIPC.swift. The
+        # extension target itself lives in the host app, so it is covered by the
+        # type-check job instead.
+        run: |
+          flutter pub get
+          flutter build ios --no-codesign --debug

@@ -1,0 +1,129 @@
+name: Build Xray.xcframework (iOS)
+
+# Produces the Xray.xcframework consumed by the iOS packet tunnel extension.
+# gomobile needs macOS and Xcode, so this runs on a macOS runner: the framework
+# can be built without a Mac on the developer's desk.
+#
+# Download the artifact from the finished run and unzip it into ios/ of this
+# plugin (ios/Xray.xcframework), which is where the podspec looks for it.
+
+on:
+  workflow_call:
+    inputs:
+      xray_tag:
+        type: string
+        required: false
+        default: "v26.2.6"
+      ios_version:
+        type: string
+        required: false
+        default: "15.0"
+  workflow_dispatch:
+    inputs:
+      xray_tag:
+        description: "Xray-core release tag to build against (keep in step with the Android core)"
+        required: true
+        default: "v26.2.6"
+      ios_version:
+        description: "Minimum iOS version"
+        required: true
+        default: "15.0"
+  push:
+    tags:
+      - "ios-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: ios/core
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: ios/core/go.sum
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode.app
+
+      - name: Resolve Xray-core tag to a commit
+        id: xray
+        run: |
+          TAG="${{ inputs.xray_tag || 'v26.2.6' }}"
+          # xray-core publishes v25.x / v26.x tags while keeping the module path
+          # github.com/xtls/xray-core, so those tags are not resolvable as
+          # semver. Pinning the tag's commit makes go record a pseudo-version.
+          SHA=$(git ls-remote https://github.com/XTLS/Xray-core "refs/tags/${TAG}" | cut -f1)
+          if [ -z "$SHA" ]; then
+            echo "::error::Xray-core tag ${TAG} not found"
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Resolved ${TAG} to ${SHA}"
+
+      - name: Pin dependencies
+        run: |
+          go get "github.com/xtls/xray-core@${{ steps.xray.outputs.sha }}"
+          go get golang.org/x/mobile/bind
+          go mod tidy
+          echo "--- go.mod ---"
+          cat go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: gomobile init
+        run: gomobile init
+
+      - name: Build xcframework
+        run: |
+          gomobile bind \
+            -target=ios,iossimulator \
+            -iosversion="${{ inputs.ios_version || '15.0' }}" \
+            -o Xray.xcframework \
+            -trimpath \
+            -ldflags="-s -w" \
+            .
+
+      - name: Report size and slices
+        run: |
+          echo "--- slices ---"
+          ls -1 Xray.xcframework
+          echo "--- size ---"
+          du -sh Xray.xcframework
+
+      - name: Record provenance
+        # MPL-2.0 covers Xray-core, so ship the framework with a note saying
+        # exactly which source it was built from.
+        run: |
+          cat > Xray.xcframework/BUILD_INFO.txt <<INFO
+          Xray.xcframework
+          built: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          xray-core tag:    ${{ steps.xray.outputs.tag }}
+          xray-core commit: ${{ steps.xray.outputs.sha }}
+          xray-core source: https://github.com/XTLS/Xray-core (MPL-2.0)
+          shim source:      ios/core/ of this repository, commit ${{ github.sha }}
+          go:               $(go version)
+          min iOS:          ${{ inputs.ios_version || '15.0' }}
+          INFO
+          cat Xray.xcframework/BUILD_INFO.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Xray.xcframework-${{ steps.xray.outputs.tag }}
+          path: ios/core/Xray.xcframework
+          if-no-files-found: error
+          retention-days: 30
