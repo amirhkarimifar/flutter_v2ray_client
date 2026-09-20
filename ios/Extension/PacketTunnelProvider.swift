@@ -303,7 +303,10 @@ private enum TunnelError: LocalizedError {
 /// There is no logcat on iOS, so this is how `getLogs()` is served. The file is
 /// trimmed rather than rotated: the extension has no memory to spare and the
 /// app only ever wants the recent tail.
-private final class LogWriter: NSObject, XrayLogger {
+/// Conforms to `XrayLoggerProtocol`, not `XrayLogger`: gomobile emits both a
+/// protocol and a concrete wrapper class under the same Objective-C name, and
+/// Swift resolves the bare name to the class, so the protocol gains the suffix.
+private final class LogWriter: NSObject, XrayLoggerProtocol {
 
     private let url: URL?
     private let queue = DispatchQueue(label: "flutter_v2ray_client.tunnel.log")
