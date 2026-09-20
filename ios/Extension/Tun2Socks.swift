@@ -11,8 +11,8 @@ import HevSocks5Tunnel
 /// Instead this finds the descriptor the way any process can find its own
 /// sockets: walk the process's descriptors and ask each one what it is. The
 /// extension already owns a `utun` control socket by the time `startTunnel`
-/// runs, so `getpeername(2)` plus `ioctl(CTLIOCGINFO)` identifies it with
-/// nothing but public BSD interfaces.
+/// runs, so `getpeername(2)` plus a `getsockopt(2)` for the interface name
+/// identifies it with nothing but public BSD interfaces.
 enum Tun2Socks {
 
     /// Byte counters for the tunnel interface, as seen by the tun2socks layer.
@@ -41,35 +41,45 @@ enum Tun2Socks {
     /// far below this, but the walk is cheap and bounded either way.
     private static let maxDescriptor: Int32 = 1024
 
+    // `sockaddr_ctl`, `ctl_info` and `CTLIOCGINFO` live in
+    // <sys/kern_control.h>, which the iOS Darwin module does not export to
+    // Swift. Rather than drag in a bridging header, these three values are
+    // spelled out and the socket is identified by the interface name it
+    // reports, which is a stronger check than matching a control id anyway.
+    private static let addressFamilySystem = sa_family_t(32)  // AF_SYSTEM
+    private static let systemProtocolControl: Int32 = 2       // SYSPROTO_CONTROL
+    private static let utunOptionInterfaceName: Int32 = 2     // UTUN_OPT_IFNAME
+    private static let interfaceNameLimit = 16                // IFNAMSIZ
+
     private static func tunnelFileDescriptor() -> Int32? {
-        var controlInfo = ctl_info()
-        withUnsafeMutablePointer(to: &controlInfo.ctl_name) { namePointer in
-            namePointer.withMemoryRebound(
-                to: CChar.self,
-                capacity: MemoryLayout.size(ofValue: namePointer.pointee)
-            ) { name in
-                _ = strcpy(name, "com.apple.net.utun_control")
-            }
-        }
-
         for descriptor in Int32(0)...maxDescriptor {
-            var address = sockaddr_ctl()
-            var length = socklen_t(MemoryLayout.size(ofValue: address))
-            var result: Int32 = -1
+            var address = sockaddr_storage()
+            var length = socklen_t(MemoryLayout<sockaddr_storage>.size)
 
-            withUnsafeMutablePointer(to: &address) { pointer in
+            let connected = withUnsafeMutablePointer(to: &address) { pointer in
                 pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { generic in
-                    result = getpeername(descriptor, generic, &length)
+                    getpeername(descriptor, generic, &length)
                 }
             }
 
             // Not a socket, or not a kernel control socket: keep looking.
-            guard result == 0, address.sc_family == AF_SYSTEM else { continue }
+            guard connected == 0, address.ss_family == addressFamilySystem else { continue }
 
-            if controlInfo.ctl_id == 0 {
-                guard ioctl(descriptor, CTLIOCGINFO, &controlInfo) == 0 else { continue }
-            }
-            if address.sc_id == controlInfo.ctl_id {
+            // The extension holds other kernel control sockets, so confirm this
+            // one is the tunnel by asking it for its interface name.
+            var name = [CChar](repeating: 0, count: interfaceNameLimit + 1)
+            var nameLength = socklen_t(name.count)
+            guard
+                getsockopt(
+                    descriptor,
+                    systemProtocolControl,
+                    utunOptionInterfaceName,
+                    &name,
+                    &nameLength
+                ) == 0
+            else { continue }
+
+            if String(cString: name).hasPrefix("utun") {
                 return descriptor
             }
         }

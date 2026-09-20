@@ -163,6 +163,6 @@ it.
 | [hev-socks5-tunnel](https://github.com/heiher/hev-socks5-tunnel) | MIT |
 
 The utun descriptor lookup in `Tun2Socks.swift` uses only public BSD interfaces
-(`getpeername`, `ioctl(CTLIOCGINFO)`). It deliberately avoids the common
+(`getpeername`, `getsockopt`). It deliberately avoids the common
 `packetFlow.value(forKeyPath: "socket.fileDescriptor")` approach, which reads a
 private ivar through KVC and is a plausible App Store rejection.
