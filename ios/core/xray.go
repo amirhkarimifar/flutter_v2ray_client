@@ -50,6 +50,13 @@ var (
 	instance *core.Instance
 	stopGC   chan struct{}
 	logStop  chan struct{}
+
+	// Saved so the standard streams can be put back when the pump stops.
+	// Without this a second Start writes into a pipe nobody reads any more,
+	// and the process blocks once its buffer fills.
+	realStdout *os.File
+	realStderr *os.File
+	logWriter  *os.File
 )
 
 // Version reports the Xray-core version this framework was built against.
@@ -262,35 +269,51 @@ func stopGCLocked() {
 }
 
 func startLogPump(logger Logger) {
+	if logStop != nil {
+		// Already pumping; a second pipe would orphan the first.
+		return
+	}
+
 	reader, writer, err := os.Pipe()
 	if err != nil {
 		return
 	}
-	os.Stdout = writer
-	os.Stderr = writer
+
+	realStdout, realStderr = os.Stdout, os.Stderr
+	os.Stdout, os.Stderr = writer, writer
+	logWriter = writer
 
 	logStop = make(chan struct{})
-	done := logStop
 	go func() {
 		defer reader.Close()
 		scanner := bufio.NewScanner(reader)
 		// Xray can emit long lines; a cap keeps a malformed stream from growing
 		// without bound inside the extension's memory budget.
 		scanner.Buffer(make([]byte, 0, 4096), 64*1024)
+		// Ends when the writer is closed by stopLogPump.
 		for scanner.Scan() {
-			select {
-			case <-done:
-				return
-			default:
-			}
 			logger.LogInput(scanner.Text())
 		}
 	}()
 }
 
 func stopLogPump() {
-	if logStop != nil {
-		close(logStop)
-		logStop = nil
+	if logStop == nil {
+		return
+	}
+	close(logStop)
+	logStop = nil
+
+	// Restore before closing, so nothing writes into a closed pipe.
+	if realStdout != nil {
+		os.Stdout, realStdout = realStdout, nil
+	}
+	if realStderr != nil {
+		os.Stderr, realStderr = realStderr, nil
+	}
+	if logWriter != nil {
+		// Closing gives the scanner EOF, which ends the goroutine.
+		_ = logWriter.Close()
+		logWriter = nil
 	}
 }

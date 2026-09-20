@@ -1,0 +1,69 @@
+name: Test core shim
+
+# Runs the Go tests for ios/core on Linux. The shim is ordinary Go, so this
+# needs no Xcode, no device, and bills at 1x rather than the 10x macOS rate —
+# which makes it the cheapest place to catch core, config and lifecycle bugs.
+#
+# What it cannot cover is the iOS-specific part: the utun descriptor, the
+# network settings, entitlements, and the extension's memory cap.
+
+on:
+  workflow_dispatch:
+    inputs:
+      xray_tag:
+        description: "Xray-core release tag to test against"
+        required: true
+        default: "v26.2.6"
+  push:
+    paths:
+      - "ios/core/**"
+      - ".github/workflows/test-core.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ios/core
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: ios/core/go.mod
+
+      - name: Pin xray-core
+        run: |
+          TAG="${{ inputs.xray_tag || 'v26.2.6' }}"
+          # Release tags above v1 are not resolvable as semver, because the
+          # module path carries no /vN. Pin the tag's commit instead.
+          SHA=$(git ls-remote https://github.com/XTLS/Xray-core "refs/tags/${TAG}" | cut -f1)
+          if [ -z "$SHA" ]; then
+            echo "::error::Xray-core tag ${TAG} not found"
+            exit 1
+          fi
+          echo "Building against ${TAG} (${SHA})"
+          go get "github.com/xtls/xray-core@${SHA}"
+          go mod tidy
+
+      - name: Format
+        run: |
+          UNFORMATTED=$(gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "::error::gofmt needed for: ${UNFORMATTED}"
+            gofmt -d .
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        # The race detector matters here: the log pump, the GC ticker and the
+        # delay probes all run on their own goroutines alongside the core.
+        run: go test -race -v -timeout 5m ./...
