@@ -48,7 +48,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
-          cache-dependency-path: ios/core/go.sum
+          cache-dependency-path: ios/core/go.mod
 
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode.app
@@ -72,8 +72,11 @@ jobs:
       - name: Pin dependencies
         run: |
           go get "github.com/xtls/xray-core@${{ steps.xray.outputs.sha }}"
-          go get golang.org/x/mobile/bind
           go mod tidy
+          # gomobile requires golang.org/x/mobile to be in the module graph, and
+          # nothing here imports it, so `go mod tidy` drops a plain `go get`.
+          # A tool directive survives tidy, which is what gomobile now expects.
+          go get -tool golang.org/x/mobile/cmd/gobind
           echo "--- go.mod ---"
           cat go.mod
 

@@ -30,8 +30,12 @@ Locally, from this directory:
 # major version 1 — so pin the tag's commit and let go record a pseudo-version.
 SHA=$(git ls-remote https://github.com/XTLS/Xray-core refs/tags/v26.2.6 | cut -f1)
 go get "github.com/xtls/xray-core@${SHA}"
-go get golang.org/x/mobile/bind
 go mod tidy
+
+# gomobile needs golang.org/x/mobile in the module graph. Nothing here imports
+# it, so a plain `go get` is removed again by `go mod tidy`; a tool directive
+# survives, which is what current gomobile expects.
+go get -tool golang.org/x/mobile/cmd/gobind
 
 go install golang.org/x/mobile/cmd/gomobile@latest
 gomobile init
