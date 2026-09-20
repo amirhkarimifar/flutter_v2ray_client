@@ -1,0 +1,115 @@
+{
+  "log": {
+    "access": "none",
+    "error": "",
+    "loglevel": "warning",
+    "dnsLog": false
+  },
+  "inbounds": [
+    {
+      "tag": "in_proxy",
+      "port": 1080,
+      "protocol": "socks",
+      "listen": "127.0.0.1",
+      "settings": {
+        "auth": "noauth",
+        "udp": true,
+        "userLevel": 8
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "fakedns",
+          "http",
+          "tls",
+          "quic"
+        ],
+        "metadataOnly": true,
+        "routeOnly": false
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "example.com",
+            "port": 443,
+            "users": [
+              {
+                "id": "12345678-abcd-1234-abcd-12345678abcd",
+                "level": 8,
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tcpSettings": {
+          "header": {
+            "type": "none"
+          }
+        },
+        "tlsSettings": {
+          "serverName": "example.com",
+          "show": false
+        }
+      },
+      "mux": {
+        "enabled": false,
+        "concurrency": 8
+      }
+    },
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {
+        "domainStrategy": "UseIp"
+      }
+    },
+    {
+      "tag": "blackhole",
+      "protocol": "blackhole"
+    },
+    {
+      "tag": "dns-out",
+      "protocol": "dns"
+    }
+  ],
+  "dns": {
+    "servers": [
+      "fakedns",
+      "8.8.8.8",
+      "8.8.4.4"
+    ]
+  },
+  "fakedns": [
+    {
+      "ipPool": "198.18.0.0/16",
+      "poolSize": 65535
+    },
+    {
+      "ipPool": "fc00::/18",
+      "poolSize": 65535
+    }
+  ],
+  "routing": {
+    "domainStrategy": "UseIp",
+    "rules": [
+      {
+        "type": "field",
+        "inboundTag": [
+          "in_proxy"
+        ],
+        "port": 53,
+        "outboundTag": "dns-out"
+      }
+    ]
+  }
+}

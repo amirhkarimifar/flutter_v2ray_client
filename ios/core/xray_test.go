@@ -1,11 +1,13 @@
 package xray
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -282,5 +284,106 @@ func TestSetMemoryLimit(t *testing.T) {
 	SetMemoryLimit(0)
 	if got := debug.SetMemoryLimit(-1); got != defaultMemoryLimitMB*1024*1024 {
 		t.Fatalf("expected the %d MiB default, got %d bytes", defaultMemoryLimitMB, got)
+	}
+}
+
+// The config in testdata is emitted by the Dart URL parsers and kept in step
+// by a golden test on that side. Loading it here is what proves xray-core
+// actually accepts what the plugin generates — shape assertions in Dart cannot
+// tell you whether the core considers a routing rule valid.
+func TestGeneratedConfigIsAcceptedByTheCore(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "generated_config.json"))
+	if err != nil {
+		t.Fatalf("reading the fixture: %v", err)
+	}
+
+	// The fixture carries a fixed port so it stays stable in review; swap in
+	// one that is definitely free before starting.
+	var config map[string]any
+	if err := json.Unmarshal(raw, &config); err != nil {
+		t.Fatalf("the fixture is not valid JSON: %v", err)
+	}
+	inbounds, ok := config["inbounds"].([]any)
+	if !ok || len(inbounds) == 0 {
+		t.Fatal("the fixture has no inbounds")
+	}
+	inbounds[0].(map[string]any)["port"] = freePort(t)
+
+	patched, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("re-encoding: %v", err)
+	}
+
+	if err := Start(patched, nil); err != nil {
+		t.Fatalf("xray-core rejected the generated configuration: %v", err)
+	}
+	defer stopQuietly(t)
+
+	if !IsRunning() {
+		t.Fatal("the core did not come up on the generated configuration")
+	}
+}
+
+// FakeDNS depends on four separate pieces agreeing. The core starts happily
+// when they do not, so this asserts the wiring directly against the same
+// fixture the core validates.
+func TestGeneratedConfigWiresFakeDNS(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "generated_config.json"))
+	if err != nil {
+		t.Fatalf("reading the fixture: %v", err)
+	}
+
+	var config struct {
+		DNS struct {
+			Servers []any `json:"servers"`
+		} `json:"dns"`
+		FakeDNS []struct {
+			IPPool string `json:"ipPool"`
+		} `json:"fakedns"`
+		Routing struct {
+			Rules []struct {
+				Type        string   `json:"type"`
+				InboundTag  []string `json:"inboundTag"`
+				Port        any      `json:"port"`
+				OutboundTag string   `json:"outboundTag"`
+			} `json:"rules"`
+		} `json:"routing"`
+		Outbounds []struct {
+			Tag      string `json:"tag"`
+			Protocol string `json:"protocol"`
+		} `json:"outbounds"`
+	}
+	if err := json.Unmarshal(raw, &config); err != nil {
+		t.Fatalf("decoding the fixture: %v", err)
+	}
+
+	if len(config.DNS.Servers) == 0 || config.DNS.Servers[0] != "fakedns" {
+		t.Fatalf("fakedns must be the first dns server, got %v", config.DNS.Servers)
+	}
+	if len(config.FakeDNS) != 2 {
+		t.Fatalf("expected an IPv4 and an IPv6 pool, got %d", len(config.FakeDNS))
+	}
+
+	var routed bool
+	for _, rule := range config.Routing.Rules {
+		if rule.OutboundTag == "dns-out" {
+			routed = true
+			if rule.Type != "field" {
+				t.Errorf("the dns rule needs type \"field\", got %q", rule.Type)
+			}
+		}
+	}
+	if !routed {
+		t.Fatal("no routing rule sends dns traffic to dns-out, so fakedns is never consulted")
+	}
+
+	var hasDNSOutbound bool
+	for _, outbound := range config.Outbounds {
+		if outbound.Tag == "dns-out" && outbound.Protocol == "dns" {
+			hasDNSOutbound = true
+		}
+	}
+	if !hasDNSOutbound {
+		t.Fatal("the routing rule points at a dns-out outbound that does not exist")
 	}
 }

@@ -126,15 +126,33 @@ abstract class V2RayURL {
   };
 
   /// DNS configuration.
+  ///
+  /// 'fakedns' must come first: it is the server that answers with addresses
+  /// from the pools below, which is what makes the domain survive all the way
+  /// to the proxy instead of being resolved locally. The real resolvers stay
+  /// behind it as the fallback for queries FakeDNS does not answer.
   Map<String, dynamic> dns = {
-    'servers': ['8.8.8.8', '8.8.4.4']
+    'servers': ['fakedns', '8.8.8.8', '8.8.4.4']
   };
 
   /// Routing configuration.
+  ///
+  /// The single rule hands DNS queries from the local inbound to the 'dns-out'
+  /// outbound, which is what lets Xray answer them itself. Without it nothing
+  /// ever reaches the DNS module, the 'fakedns' server above is never
+  /// consulted, and the fake pools go unused — the configuration looks like it
+  /// enables FakeDNS while doing nothing of the sort.
   Map<String, dynamic> routing = {
     'domainStrategy': 'UseIp',
     'domainMatcher': null,
-    'rules': [],
+    'rules': [
+      {
+        'type': 'field',
+        'inboundTag': ['in_proxy'],
+        'port': 53,
+        'outboundTag': 'dns-out',
+      },
+    ],
     'balancers': []
   };
 

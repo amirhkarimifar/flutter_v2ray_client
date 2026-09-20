@@ -1,4 +1,4 @@
-name: Test core shim
+name: Tests
 
 # Runs the Go tests for ios/core on Linux. The shim is ordinary Go, so this
 # needs no Xcode, no device, and bills at 1x rather than the 10x macOS rate —
@@ -17,6 +17,8 @@ on:
   push:
     paths:
       - "ios/core/**"
+      - "lib/**"
+      - "test/**"
       - ".github/workflows/test-core.yml"
 
 permissions:
@@ -67,3 +69,23 @@ jobs:
         # The race detector matters here: the log pump, the GC ticker and the
         # delay probes all run on their own goroutines alongside the core.
         run: go test -race -v -timeout 5m ./...
+
+  dart:
+    name: Dart tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - run: flutter analyze
+
+      # Includes the golden test that keeps ios/core/testdata in step with what
+      # the URL parsers emit, so the Go tests cannot end up validating a stale
+      # copy of the configuration.
+      - run: flutter test
