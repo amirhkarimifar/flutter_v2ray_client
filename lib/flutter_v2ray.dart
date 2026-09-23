@@ -126,6 +126,21 @@ class V2ray {
     return FlutterV2rayPlatform.instance.getCoreVersion();
   }
 
+  /// Returns the Go fatal error report left behind if the core process died on a
+  /// panic, and clears it. Null when the last run ended normally.
+  ///
+  /// Call this at startup and forward the text to your crash reporter: the
+  /// tombstone for such a death carries only `runtime.raise` inside libgojni.so
+  /// and names no cause, so without this the diagnosis is lost.
+  Future<String?> consumeLastGoCrash() async {
+    try {
+      return await FlutterV2rayPlatform.instance.consumeLastGoCrash();
+    } catch (_) {
+      // Never let diagnostics break startup.
+      return null;
+    }
+  }
+
   /// Retrieves V2Ray logs from the system logcat.
   /// Returns a [Future] that completes with a [List] of log lines.
   /// On Android, this fetches logs filtered by V2Ray related tags.

@@ -17,6 +17,7 @@ import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 
 import dev.amirzr.flutter_v2ray_client.v2ray.V2rayController;
+import dev.amirzr.flutter_v2ray_client.v2ray.utils.GoCrashCapture;
 import dev.amirzr.flutter_v2ray_client.v2ray.V2rayReceiver;
 import dev.amirzr.flutter_v2ray_client.v2ray.utils.AppConfigs;
 import dev.amirzr.flutter_v2ray_client.v2ray.utils.LogcatManager;
@@ -169,6 +170,11 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                             result.success(-1);
                         }
                     });
+                    break;
+                case "consumeLastGoCrash":
+                    // Read on the platform thread: it touches one small file and
+                    // the reply must not come from a background thread.
+                    result.success(GoCrashCapture.consumeLastCrash(binding.getApplicationContext()));
                     break;
                 case "getCoreVersion":
                     result.success(V2rayController.getCoreVersion());
