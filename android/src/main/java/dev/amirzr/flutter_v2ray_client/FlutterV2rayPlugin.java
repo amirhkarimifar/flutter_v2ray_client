@@ -10,6 +10,8 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.VpnService;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -42,6 +44,9 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
     private static final int REQUEST_CODE_VPN_PERMISSION = 24;
     private static final int REQUEST_CODE_POST_NOTIFICATIONS = 1;
     private final ExecutorService executor = Executors.newCachedThreadPool();
+    // MethodChannel.Result must be answered on the platform thread. These
+    // handlers do their work on a pool thread, so every reply is posted back.
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private MethodChannel vpnControlMethod;
     private EventChannel vpnStatusEvent;
@@ -153,10 +158,11 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                 case "getServerDelay":
                     executor.submit(() -> {
                         try {
-                            result.success(
-                                    V2rayController.getV2rayServerDelay(call.argument("config"), call.argument("url")));
+                            final long delay = V2rayController.getV2rayServerDelay(
+                                    call.argument("config"), call.argument("url"));
+                            mainHandler.post(() -> result.success(delay));
                         } catch (Exception e) {
-                            result.success(-1);
+                            mainHandler.post(() -> result.success(-1));
                         }
                     });
                     break;
@@ -164,10 +170,11 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                     executor.submit(() -> {
                         try {
                             AppConfigs.DELAY_URL = call.argument("url");
-                            result.success(
-                                    V2rayController.getConnectedV2rayServerDelay(binding.getApplicationContext()));
+                            final long delay = V2rayController.getConnectedV2rayServerDelay(
+                                    binding.getApplicationContext());
+                            mainHandler.post(() -> result.success(delay));
                         } catch (Exception e) {
-                            result.success(-1);
+                            mainHandler.post(() -> result.success(-1));
                         }
                     });
                     break;
@@ -212,22 +219,24 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                     executor.submit(() -> {
                         try {
                             String packageName = binding.getApplicationContext().getPackageName();
-                            List<String> logs = LogcatManager.getInstance().getLogs(packageName);
-                            result.success(logs);
+                            final List<String> logs = LogcatManager.getInstance().getLogs(packageName);
+                            mainHandler.post(() -> result.success(logs));
                         } catch (Exception e) {
                             Log.e("FlutterV2rayPlugin", "Failed to get logs", e);
-                            result.error("LOG_ERROR", "Failed to retrieve logs: " + e.getMessage(), null);
+                            final String msg = e.getMessage();
+                            mainHandler.post(() -> result.error("LOG_ERROR", "Failed to retrieve logs: " + msg, null));
                         }
                     });
                     break;
                 case "clearLogs":
                     executor.submit(() -> {
                         try {
-                            boolean success = LogcatManager.getInstance().clearLogs();
-                            result.success(success);
+                            final boolean ok = LogcatManager.getInstance().clearLogs();
+                            mainHandler.post(() -> result.success(ok));
                         } catch (Exception e) {
                             Log.e("FlutterV2rayPlugin", "Failed to clear logs", e);
-                            result.error("LOG_ERROR", "Failed to clear logs: " + e.getMessage(), null);
+                            final String msg = e.getMessage();
+                            mainHandler.post(() -> result.error("LOG_ERROR", "Failed to clear logs: " + msg, null));
                         }
                     });
                     break;
