@@ -105,6 +105,18 @@ abstract class FlutterV2rayPlatform extends PlatformInterface {
     );
   }
 
+  /// Returns the Go fatal error report left behind if the core process died on a
+  /// panic, and clears it. Null when the last run ended normally.
+  ///
+  /// The tombstone for such a death names only `runtime.raise` inside
+  /// libgojni.so — the Go runtime re-raising the signal — so this text is the
+  /// only account of what actually went wrong.
+  Future<String?> consumeLastGoCrash() async {
+    throw UnimplementedError(
+      'consumeLastGoCrash() has not been implemented.',
+    );
+  }
+
   /// Retrieves V2Ray logs from the system logcat.
   /// Returns a [Future] that completes with a [List] of log lines.
   /// On non-Android platforms, returns an empty list.

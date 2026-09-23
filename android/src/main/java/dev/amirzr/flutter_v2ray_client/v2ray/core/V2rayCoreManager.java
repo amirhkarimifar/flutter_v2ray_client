@@ -24,6 +24,7 @@ import dev.amirzr.flutter_v2ray_client.v2ray.interfaces.V2rayServicesListener;
 import dev.amirzr.flutter_v2ray_client.v2ray.services.V2rayProxyOnlyService;
 import dev.amirzr.flutter_v2ray_client.v2ray.services.V2rayVPNService;
 import dev.amirzr.flutter_v2ray_client.v2ray.utils.AppConfigs;
+import dev.amirzr.flutter_v2ray_client.v2ray.utils.GoCrashCapture;
 import dev.amirzr.flutter_v2ray_client.v2ray.utils.Utilities;
 import dev.amirzr.flutter_v2ray_client.v2ray.utils.V2rayConfig;
 
@@ -166,6 +167,10 @@ public final class V2rayCoreManager {
 
             // Only initialize Go runtime once — re-initializing can crash the Go shared library
             if (!isLibV2rayCoreInitialized) {
+                // Must precede the first Go call: loading libgojni is what starts
+                // the runtime that writes fatal reports to fd 2, and anything it
+                // writes before the redirect is gone for good.
+                GoCrashCapture.install(targetService.getApplicationContext());
                 Libv2ray.initCoreEnv(getUserAssetsPath(targetService.getApplicationContext()), "");
 
                 // Initialize controller with callback handler

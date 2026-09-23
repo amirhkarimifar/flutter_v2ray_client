@@ -96,6 +96,11 @@ class MethodChannelFlutterV2ray extends FlutterV2rayPlatform {
   }
 
   @override
+  Future<String?> consumeLastGoCrash() async {
+    return await methodChannel.invokeMethod<String>('consumeLastGoCrash');
+  }
+
+  @override
   Future<List<String>> getLogs() async {
     try {
       final result = await methodChannel.invokeMethod('getLogs');
