@@ -1,4 +1,4 @@
-package dev.amirzr.flutter_v2ray_client.v2ray.utils;
+package com.neomanera.ipconnect.core.v2ray.utils;
 
 import android.util.Log;
 
@@ -60,7 +60,7 @@ public class LogcatManager {
             // "beginning of crash" buffer headers, hiding why some devices
             // fail to connect.
             commandSet.add("GoLog,tun2socks," + packageName
-                    + ",AndroidRuntime,System.err,V2rayCoreManager,FlutterV2rayPlugin"
+                    + ",AndroidRuntime,System.err,V2rayCoreManager,IpConnectCorePlugin"
                     + ",libc,DEBUG,Go,linker");
 
             Process process = Runtime.getRuntime().exec(commandSet.toArray(new String[0]));

@@ -9,19 +9,21 @@
 # Xray.xcframework must be built before `pod install` — it is not vendored as a
 # prebuilt binary. See ios/core/README.md.
 #
-# Run `pod lib lint flutter_v2ray_client.podspec` to validate before publishing.
+# Run `pod lib lint ipconnect_core.podspec` to validate before publishing.
 #
 Pod::Spec.new do |s|
-  s.name             = 'flutter_v2ray_client'
+  s.name             = 'ipconnect_core'
   s.version          = '3.3.0'
-  s.summary          = 'Flutter client plugin for Xray/V2Ray'
+  s.summary          = 'Xray/V2Ray core for IP Connect'
   s.description      = <<-DESC
-Flutter plugin providing V2Ray/Xray client control. On iOS the tunnel runs in a
+App-side control of the IP Connect VPN. On iOS the tunnel runs in a
 NEPacketTunnelProvider extension; this pod is the app-side control surface.
                        DESC
-  s.homepage         = 'https://github.com/amir-zr/flutter_v2ray_client'
+  s.homepage         = 'https://github.com/amirhkarimifar/flutter_v2ray_client'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Amir Ziari' => 'ahz85955@gmail.com' }
+  # Maintained by NEOMANERA LTD; derived from Amir Ziari's flutter_v2ray_client
+  # (MIT, see LICENSE and ATTRIBUTION.md).
+  s.authors          = ['NEOMANERA LTD', 'Amir Ziari']
   s.source           = { :path => '.' }
 
   # Classes/ is the app side. TunnelIPC is the only file shared with the

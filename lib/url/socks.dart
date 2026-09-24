@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter_v2ray_client/url/url.dart';
+import 'package:ipconnect_core/url/url.dart';
 
 /// Socks URL parser and adapter to produce V2Ray configuration pieces.
 ///

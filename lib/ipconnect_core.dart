@@ -1,14 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_v2ray_client/url/shadowsocks.dart';
-import 'package:flutter_v2ray_client/url/socks.dart';
-import 'package:flutter_v2ray_client/url/trojan.dart';
-import 'package:flutter_v2ray_client/url/url.dart';
-import 'package:flutter_v2ray_client/url/vless.dart';
-import 'package:flutter_v2ray_client/url/vmess.dart';
+import 'package:ipconnect_core/url/shadowsocks.dart';
+import 'package:ipconnect_core/url/socks.dart';
+import 'package:ipconnect_core/url/trojan.dart';
+import 'package:ipconnect_core/url/url.dart';
+import 'package:ipconnect_core/url/vless.dart';
+import 'package:ipconnect_core/url/vmess.dart';
 
-import 'flutter_v2ray_platform_interface.dart';
+import 'ipconnect_core_platform_interface.dart';
 import 'model/v2ray_status.dart';
 
 export 'model/v2ray_status.dart';
@@ -16,10 +16,10 @@ export 'url/url.dart';
 
 /// A class for managing V2Ray connections and operations.
 /// Provides methods to initialize, start, stop, and query V2Ray services.
-class V2ray {
-  /// Creates a new V2ray instance.
+class IpConnectCore {
+  /// Creates a new IpConnectCore instance.
   /// [onStatusChanged] is a callback function that will be called whenever the V2Ray status changes.
-  V2ray({required this.onStatusChanged});
+  IpConnectCore({required this.onStatusChanged});
 
   /// Callback function invoked when the V2Ray status changes.
   /// It receives a [V2RayStatus] object containing details like duration, speeds, and state.
@@ -34,7 +34,7 @@ class V2ray {
   /// default to granting permission.
   Future<bool> requestPermission() async {
     if (Platform.isAndroid || Platform.isIOS) {
-      return FlutterV2rayPlatform.instance.requestPermission();
+      return IpConnectCorePlatform.instance.requestPermission();
     }
     return true;
   }
@@ -62,7 +62,7 @@ class V2ray {
       'groupIdentifier. See ios/IOS_SETUP.md.',
     );
 
-    await FlutterV2rayPlatform.instance.initializeV2Ray(
+    await IpConnectCorePlatform.instance.initializeV2Ray(
       onStatusChanged: onStatusChanged,
       notificationIconResourceType: notificationIconResourceType,
       notificationIconResourceName: notificationIconResourceName,
@@ -96,7 +96,7 @@ class V2ray {
       throw ArgumentError('The provided string is not valid JSON');
     }
 
-    await FlutterV2rayPlatform.instance.startV2Ray(
+    await IpConnectCorePlatform.instance.startV2Ray(
       remark: remark,
       config: config,
       blockedApps: blockedApps,
@@ -109,7 +109,7 @@ class V2ray {
   /// Stops the V2Ray service.
   /// Returns a [Future] that completes when the service is stopped.
   Future<void> stopV2Ray() async {
-    await FlutterV2rayPlatform.instance.stopV2Ray();
+    await IpConnectCorePlatform.instance.stopV2Ray();
   }
 
   /// Measures the delay to a V2Ray server using the provided configuration.
@@ -128,7 +128,7 @@ class V2ray {
     } catch (_) {
       throw ArgumentError('The provided string is not valid JSON');
     }
-    return FlutterV2rayPlatform.instance
+    return IpConnectCorePlatform.instance
         .getServerDelay(config: config, url: url);
   }
 
@@ -138,13 +138,13 @@ class V2ray {
   Future<int> getConnectedServerDelay({
     String url = 'https://google.com/generate_204',
   }) async {
-    return FlutterV2rayPlatform.instance.getConnectedServerDelay(url);
+    return IpConnectCorePlatform.instance.getConnectedServerDelay(url);
   }
 
   /// Retrieves the version of the V2Ray core.
   /// Returns a [Future] that completes with a [String] representing the core version.
   Future<String> getCoreVersion() async {
-    return FlutterV2rayPlatform.instance.getCoreVersion();
+    return IpConnectCorePlatform.instance.getCoreVersion();
   }
 
   /// Returns the Go fatal error report left behind if the core process died on a
@@ -155,7 +155,7 @@ class V2ray {
   /// and names no cause, so without this the diagnosis is lost.
   Future<String?> consumeLastGoCrash() async {
     try {
-      return await FlutterV2rayPlatform.instance.consumeLastGoCrash();
+      return await IpConnectCorePlatform.instance.consumeLastGoCrash();
     } catch (_) {
       // Never let diagnostics break startup.
       return null;
@@ -168,7 +168,7 @@ class V2ray {
   /// On non-Android platforms, returns an empty list.
   Future<List<String>> getLogs() async {
     if (Platform.isAndroid) {
-      return FlutterV2rayPlatform.instance.getLogs();
+      return IpConnectCorePlatform.instance.getLogs();
     }
     return [];
   }
@@ -179,7 +179,7 @@ class V2ray {
   /// On non-Android platforms, returns true.
   Future<bool> clearLogs() async {
     if (Platform.isAndroid) {
-      return FlutterV2rayPlatform.instance.clearLogs();
+      return IpConnectCorePlatform.instance.clearLogs();
     }
     return true;
   }

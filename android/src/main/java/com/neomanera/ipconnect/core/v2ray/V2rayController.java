@@ -1,4 +1,4 @@
-package dev.amirzr.flutter_v2ray_client.v2ray;
+package com.neomanera.ipconnect.core.v2ray;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -6,11 +6,11 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
 
-import dev.amirzr.flutter_v2ray_client.v2ray.core.V2rayCoreManager;
-import dev.amirzr.flutter_v2ray_client.v2ray.services.V2rayProxyOnlyService;
-import dev.amirzr.flutter_v2ray_client.v2ray.services.V2rayVPNService;
-import dev.amirzr.flutter_v2ray_client.v2ray.utils.AppConfigs;
-import dev.amirzr.flutter_v2ray_client.v2ray.utils.Utilities;
+import com.neomanera.ipconnect.core.v2ray.core.V2rayCoreManager;
+import com.neomanera.ipconnect.core.v2ray.services.V2rayProxyOnlyService;
+import com.neomanera.ipconnect.core.v2ray.services.V2rayVPNService;
+import com.neomanera.ipconnect.core.v2ray.utils.AppConfigs;
+import com.neomanera.ipconnect.core.v2ray.utils.Utilities;
 
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;

@@ -1,17 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'flutter_v2ray_platform_interface.dart';
+import 'ipconnect_core_platform_interface.dart';
 import 'model/v2ray_status.dart' show V2RayStatus;
 
-/// An implementation of [FlutterV2rayPlatform] that uses method channels.
-class MethodChannelFlutterV2ray extends FlutterV2rayPlatform {
+/// An implementation of [IpConnectCorePlatform] that uses method channels.
+class MethodChannelIpConnectCore extends IpConnectCorePlatform {
   /// The method channel used to interact with the native platform.
   @visibleForTesting
-  final methodChannel = const MethodChannel('flutter_v2ray_client');
+  final methodChannel = const MethodChannel('ipconnect_core');
 
   /// The event channel used to receive status updates from the native platform.
-  final eventChannel = const EventChannel('flutter_v2ray_client/status');
+  final eventChannel = const EventChannel('ipconnect_core/status');
 
   @override
   Future<void> initializeV2Ray({

@@ -3,19 +3,19 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_v2ray_client/flutter_v2ray.dart';
-import 'package:flutter_v2ray_client/url/vless.dart';
+import 'package:ipconnect_core/ipconnect_core.dart';
+import 'package:ipconnect_core/url/vless.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('V2ray URL Parsing Tests', () {
+  group('IpConnectCore URL Parsing Tests', () {
     test('should parse vmess URL correctly', () {
       const vmessUrl =
           'vmess://eyJ2IjoiMiIsInBzIjoiVGVzdCBTZXJ2ZXIiLCJhZGQiOiIxMC4wLjAuMSIsInBvcnQiOiI0NDMiLCJpZCI6IjEyMzQ1Njc4LWFiY2QtMTIzNC1hYmNkLTEyMzQ1Njc4YWJjZCIsImFpZCI6IjAiLCJuZXQiOiJ0Y3AiLCJ0eXBlIjoibm9uZSIsImhvc3QiOiIiLCJwYXRoIjoiIiwidGxzIjoiIn0=';
 
-      expect(() => V2ray.parseFromURL(vmessUrl), returnsNormally);
-      final parsed = V2ray.parseFromURL(vmessUrl);
+      expect(() => IpConnectCore.parseFromURL(vmessUrl), returnsNormally);
+      final parsed = IpConnectCore.parseFromURL(vmessUrl);
       expect(parsed, isA<V2RayURL>());
       expect(parsed.remark, equals('Test Server'));
     });
@@ -24,8 +24,8 @@ void main() {
       const vlessUrl =
           'vless://12345678-abcd-1234-abcd-12345678abcd@10.0.0.1:443?type=tcp&security=tls&sni=example.com#Test VLESS';
 
-      expect(() => V2ray.parseFromURL(vlessUrl), returnsNormally);
-      final parsed = V2ray.parseFromURL(vlessUrl);
+      expect(() => IpConnectCore.parseFromURL(vlessUrl), returnsNormally);
+      final parsed = IpConnectCore.parseFromURL(vlessUrl);
       expect(parsed, isA<V2RayURL>());
       expect(parsed.remark, equals('Test VLESS'));
     });
@@ -33,22 +33,22 @@ void main() {
     test('should throw ArgumentError for invalid URL', () {
       const invalidUrl = 'invalid://url';
 
-      expect(() => V2ray.parseFromURL(invalidUrl), throwsArgumentError);
+      expect(() => IpConnectCore.parseFromURL(invalidUrl), throwsArgumentError);
     });
 
     test('should throw ArgumentError for unsupported protocol', () {
       const unsupportedUrl = 'unsupported://example.com';
 
-      expect(() => V2ray.parseFromURL(unsupportedUrl), throwsArgumentError);
+      expect(() => IpConnectCore.parseFromURL(unsupportedUrl), throwsArgumentError);
     });
   });
 
-  group('V2ray Configuration Validation Tests', () {
-    late V2ray v2ray;
-    const channel = MethodChannel('flutter_v2ray_client');
+  group('IpConnectCore Configuration Validation Tests', () {
+    late IpConnectCore v2ray;
+    const channel = MethodChannel('ipconnect_core');
 
     setUp(() {
-      v2ray = V2ray(onStatusChanged: (_) {});
+      v2ray = IpConnectCore(onStatusChanged: (_) {});
       // Without a handler the platform call rejects, and the rejection
       // surfaces as an unhandled async error rather than a test failure that
       // says anything useful. These tests are about the JSON validation that
@@ -115,7 +115,7 @@ void main() {
         'vless://12345678-abcd-1234-abcd-12345678abcd@10.0.0.1:443?type=tcp&security=tls&sni=example.com#FakeDNS';
 
     Map<String, dynamic> configFor(String url) {
-      final parsed = V2ray.parseFromURL(url);
+      final parsed = IpConnectCore.parseFromURL(url);
       return jsonDecode(parsed.getFullConfiguration()) as Map<String, dynamic>;
     }
 

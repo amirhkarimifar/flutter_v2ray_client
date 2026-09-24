@@ -4,17 +4,17 @@ import NetworkExtension
 import UIKit
 import Xray
 
-/// iOS implementation of the flutter_v2ray_client method and event channels.
+/// iOS implementation of the ipconnect_core method and event channels.
 ///
 /// The split from Android is the important part: there, the VPN runs inside the
 /// app process and the plugin can call the core directly. Here the tunnel lives
 /// in a separate Network Extension process, so this class installs and drives a
 /// VPN profile and polls the extension for numbers. The only thing it runs
 /// in-process is a standalone delay test, which needs no tunnel.
-public class FlutterV2rayPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
+public class IpConnectCorePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
-    private static let methodChannelName = "flutter_v2ray_client"
-    private static let eventChannelName = "flutter_v2ray_client/status"
+    private static let methodChannelName = "ipconnect_core"
+    private static let eventChannelName = "ipconnect_core/status"
 
     private var tunnel: PacketTunnelManager?
     private var eventSink: FlutterEventSink?
@@ -32,7 +32,7 @@ public class FlutterV2rayPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     private var lastEvent: [String]?
 
     public static func register(with registrar: FlutterPluginRegistrar) {
-        let instance = FlutterV2rayPlugin()
+        let instance = IpConnectCorePlugin()
 
         let methodChannel = FlutterMethodChannel(
             name: methodChannelName,

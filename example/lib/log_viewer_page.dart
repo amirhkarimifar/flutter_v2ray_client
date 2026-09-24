@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_v2ray_client/flutter_v2ray.dart';
+import 'package:ipconnect_core/ipconnect_core.dart';
 
 /// A page that displays V2Ray logs from the system logcat
 class LogViewerPage extends StatefulWidget {
@@ -15,7 +15,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
   List<String> _filteredLogs = [];
   bool _isLoading = false;
   final TextEditingController _searchController = TextEditingController();
-  final V2ray _v2ray = V2ray(onStatusChanged: (_) {});
+  final IpConnectCore _v2ray = IpConnectCore(onStatusChanged: (_) {});
   final ScrollController _scrollController = ScrollController();
 
   @override

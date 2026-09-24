@@ -13,7 +13,7 @@ import os
 final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private static let logger = os.Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "flutter_v2ray_client",
+        subsystem: Bundle.main.bundleIdentifier ?? "ipconnect_core",
         category: "tunnel"
     )
 
@@ -353,7 +353,7 @@ private enum TunnelError: LocalizedError {
 private final class LogWriter: NSObject, XrayLoggerProtocol {
 
     private let url: URL?
-    private let queue = DispatchQueue(label: "flutter_v2ray_client.tunnel.log")
+    private let queue = DispatchQueue(label: "ipconnect_core.tunnel.log")
     private var buffer: [String] = []
     private let bufferLimit = 200
 

@@ -1,4 +1,4 @@
-package dev.amirzr.flutter_v2ray_client;
+package com.neomanera.ipconnect.core;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -18,11 +18,11 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 
-import dev.amirzr.flutter_v2ray_client.v2ray.V2rayController;
-import dev.amirzr.flutter_v2ray_client.v2ray.utils.GoCrashCapture;
-import dev.amirzr.flutter_v2ray_client.v2ray.V2rayReceiver;
-import dev.amirzr.flutter_v2ray_client.v2ray.utils.AppConfigs;
-import dev.amirzr.flutter_v2ray_client.v2ray.utils.LogcatManager;
+import com.neomanera.ipconnect.core.v2ray.V2rayController;
+import com.neomanera.ipconnect.core.v2ray.utils.GoCrashCapture;
+import com.neomanera.ipconnect.core.v2ray.V2rayReceiver;
+import com.neomanera.ipconnect.core.v2ray.utils.AppConfigs;
+import com.neomanera.ipconnect.core.v2ray.utils.LogcatManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,9 +37,9 @@ import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.PluginRegistry;
 
 /**
- * FlutterV2rayPlugin
+ * IpConnectCorePlugin
  */
-public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginRegistry.ActivityResultListener {
+public class IpConnectCorePlugin implements FlutterPlugin, ActivityAware, PluginRegistry.ActivityResultListener {
 
     private static final int REQUEST_CODE_VPN_PERMISSION = 24;
     private static final int REQUEST_CODE_POST_NOTIFICATIONS = 1;
@@ -60,8 +60,8 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
     @Override
     public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
         this.appContext = binding.getApplicationContext();
-        vpnControlMethod = new MethodChannel(binding.getBinaryMessenger(), "flutter_v2ray_client");
-        vpnStatusEvent = new EventChannel(binding.getBinaryMessenger(), "flutter_v2ray_client/status");
+        vpnControlMethod = new MethodChannel(binding.getBinaryMessenger(), "ipconnect_core");
+        vpnStatusEvent = new EventChannel(binding.getBinaryMessenger(), "ipconnect_core/status");
 
         vpnStatusEvent.setStreamHandler(new EventChannel.StreamHandler() {
             @Override
@@ -87,7 +87,7 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                         contextToUse.registerReceiver(v2rayBroadCastReceiver, filter);
                     }
                 } catch (Exception e) {
-                    Log.e("FlutterV2rayPlugin", "Failed to register broadcast receiver", e);
+                    Log.e("IpConnectCorePlugin", "Failed to register broadcast receiver", e);
                 }
 
                 // Emit current state immediately so the UI syncs without waiting for the next timer tick.
@@ -107,7 +107,7 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                     initialStatus.add(stateShort);  // state
                     events.success(initialStatus);
                 } catch (Exception e) {
-                    Log.w("FlutterV2rayPlugin", "Could not emit initial state", e);
+                    Log.w("IpConnectCorePlugin", "Could not emit initial state", e);
                 }
             }
 
@@ -222,7 +222,7 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                             final List<String> logs = LogcatManager.getInstance().getLogs(packageName);
                             mainHandler.post(() -> result.success(logs));
                         } catch (Exception e) {
-                            Log.e("FlutterV2rayPlugin", "Failed to get logs", e);
+                            Log.e("IpConnectCorePlugin", "Failed to get logs", e);
                             final String msg = e.getMessage();
                             mainHandler.post(() -> result.error("LOG_ERROR", "Failed to retrieve logs: " + msg, null));
                         }
@@ -234,7 +234,7 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                             final boolean ok = LogcatManager.getInstance().clearLogs();
                             mainHandler.post(() -> result.success(ok));
                         } catch (Exception e) {
-                            Log.e("FlutterV2rayPlugin", "Failed to clear logs", e);
+                            Log.e("IpConnectCorePlugin", "Failed to clear logs", e);
                             final String msg = e.getMessage();
                             mainHandler.post(() -> result.error("LOG_ERROR", "Failed to clear logs: " + msg, null));
                         }
@@ -282,7 +282,7 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                     activity.registerReceiver(v2rayBroadCastReceiver, filter);
                 }
             } catch (Exception e) {
-                Log.e("FlutterV2rayPlugin", "Failed to register broadcast receiver in onAttachedToActivity", e);
+                Log.e("IpConnectCorePlugin", "Failed to register broadcast receiver in onAttachedToActivity", e);
             }
         }
     }
@@ -313,7 +313,7 @@ public class FlutterV2rayPlugin implements FlutterPlugin, ActivityAware, PluginR
                     activity.registerReceiver(v2rayBroadCastReceiver, filter);
                 }
             } catch (Exception e) {
-                Log.e("FlutterV2rayPlugin", "Failed to register broadcast receiver in onReattachedToActivityForConfigChanges", e);
+                Log.e("IpConnectCorePlugin", "Failed to register broadcast receiver in onReattachedToActivityForConfigChanges", e);
             }
         }
     }

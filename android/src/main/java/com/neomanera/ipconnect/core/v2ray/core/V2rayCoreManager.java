@@ -1,6 +1,6 @@
-package dev.amirzr.flutter_v2ray_client.v2ray.core;
+package com.neomanera.ipconnect.core.v2ray.core;
 
-import static dev.amirzr.flutter_v2ray_client.v2ray.utils.Utilities.getUserAssetsPath;
+import static com.neomanera.ipconnect.core.v2ray.utils.Utilities.getUserAssetsPath;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -20,13 +20,13 @@ import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 
-import dev.amirzr.flutter_v2ray_client.v2ray.interfaces.V2rayServicesListener;
-import dev.amirzr.flutter_v2ray_client.v2ray.services.V2rayProxyOnlyService;
-import dev.amirzr.flutter_v2ray_client.v2ray.services.V2rayVPNService;
-import dev.amirzr.flutter_v2ray_client.v2ray.utils.AppConfigs;
-import dev.amirzr.flutter_v2ray_client.v2ray.utils.GoCrashCapture;
-import dev.amirzr.flutter_v2ray_client.v2ray.utils.Utilities;
-import dev.amirzr.flutter_v2ray_client.v2ray.utils.V2rayConfig;
+import com.neomanera.ipconnect.core.v2ray.interfaces.V2rayServicesListener;
+import com.neomanera.ipconnect.core.v2ray.services.V2rayProxyOnlyService;
+import com.neomanera.ipconnect.core.v2ray.services.V2rayVPNService;
+import com.neomanera.ipconnect.core.v2ray.utils.AppConfigs;
+import com.neomanera.ipconnect.core.v2ray.utils.GoCrashCapture;
+import com.neomanera.ipconnect.core.v2ray.utils.Utilities;
+import com.neomanera.ipconnect.core.v2ray.utils.V2rayConfig;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;

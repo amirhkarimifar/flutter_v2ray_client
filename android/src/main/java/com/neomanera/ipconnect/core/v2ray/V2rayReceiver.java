@@ -1,4 +1,4 @@
-package dev.amirzr.flutter_v2ray_client.v2ray;
+package com.neomanera.ipconnect.core.v2ray;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

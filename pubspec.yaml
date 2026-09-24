@@ -1,19 +1,8 @@
-name: flutter_v2ray_client
-description: Flutter client plugin for Xray/V2Ray on Android (VPN mode & proxy-only) with modernized API and docs.
-
-topics:
-  - vpn
-  - v2ray
-  - xray
-  - proxy
+name: ipconnect_core
+description: Xray/V2Ray core for IP Connect. Android runs it in a VpnService, iOS in a NetworkExtension packet tunnel.
+publish_to: 'none'
 
 version: 3.3.0
-homepage: https://github.com/amir-zr/flutter_v2ray_client
-repository: https://github.com/amir-zr/flutter_v2ray_client
-issue_tracker: https://github.com/amir-zr/flutter_v2ray_client/issues
-
-funding:
-  - https://nowpayments.io/donation?api_key=1194fbf5-0420-4156-bc86-2d49033517c5
 
 environment:
   sdk: ">=3.1.0 <4.0.0"
@@ -47,10 +36,10 @@ flutter:
   plugin:
     platforms:
       android:
-        package: dev.amirzr.flutter_v2ray_client
-        pluginClass: FlutterV2rayPlugin
+        package: com.neomanera.ipconnect.core
+        pluginClass: IpConnectCorePlugin
       ios:
-        pluginClass: FlutterV2rayPlugin
+        pluginClass: IpConnectCorePlugin
 
   # To add assets to your plugin package, add an assets section, like this:
   # assets:

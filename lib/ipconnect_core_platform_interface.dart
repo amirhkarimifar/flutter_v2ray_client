@@ -1,31 +1,31 @@
-import 'package:flutter_v2ray_client/model/v2ray_status.dart';
+import 'package:ipconnect_core/model/v2ray_status.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-import 'flutter_v2ray_method_channel.dart';
+import 'ipconnect_core_method_channel.dart';
 
-/// The interface that implementations of flutter_v2ray_client must implement.
+/// The interface that implementations of ipconnect_core must implement.
 ///
-/// Platform implementations should extend this class rather than implement it as flutter_v2ray_client
+/// Platform implementations should extend this class rather than implement it as ipconnect_core
 /// does not consider newly added methods to be breaking changes. Extending this class
 /// (using `extends`) ensures that the subclass will get the default implementation, while
 /// platform implementations that `implements` this interface will be broken by newly added methods.
-abstract class FlutterV2rayPlatform extends PlatformInterface {
-  /// Constructs a FlutterV2rayPlatform.
-  FlutterV2rayPlatform() : super(token: _token);
+abstract class IpConnectCorePlatform extends PlatformInterface {
+  /// Constructs a IpConnectCorePlatform.
+  IpConnectCorePlatform() : super(token: _token);
 
   static final Object _token = Object();
 
-  static FlutterV2rayPlatform _instance = MethodChannelFlutterV2ray();
+  static IpConnectCorePlatform _instance = MethodChannelIpConnectCore();
 
-  /// The default instance of [FlutterV2rayPlatform] to use.
+  /// The default instance of [IpConnectCorePlatform] to use.
   ///
-  /// Defaults to [MethodChannelFlutterV2ray].
-  static FlutterV2rayPlatform get instance => _instance;
+  /// Defaults to [MethodChannelIpConnectCore].
+  static IpConnectCorePlatform get instance => _instance;
 
   /// Platform-specific implementations should set this with their own
-  /// platform-specific class that extends [FlutterV2rayPlatform] when
+  /// platform-specific class that extends [IpConnectCorePlatform] when
   /// they register themselves.
-  static set instance(FlutterV2rayPlatform instance) {
+  static set instance(IpConnectCorePlatform instance) {
     PlatformInterface.verifyToken(instance, _token);
     _instance = instance;
   }

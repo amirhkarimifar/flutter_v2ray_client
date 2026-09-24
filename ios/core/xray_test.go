@@ -232,7 +232,7 @@ func TestLogPumpForwardsAndRestores(t *testing.T) {
 
 	// Written to the redirected stream, so it travels the same path as the
 	// core's own output.
-	fmt.Println("flutter_v2ray_client log pump probe")
+	fmt.Println("ipconnect_core log pump probe")
 
 	deadline := time.Now().Add(3 * time.Second)
 	var seen bool

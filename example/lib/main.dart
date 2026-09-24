@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_v2ray_client/flutter_v2ray.dart';
+import 'package:ipconnect_core/ipconnect_core.dart';
 import 'log_viewer_page.dart';
 
 void main() {
@@ -34,7 +34,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   var v2rayStatus = ValueNotifier<V2RayStatus>(V2RayStatus());
-  late final V2ray flutterV2ray = V2ray(
+  late final IpConnectCore flutterV2ray = IpConnectCore(
     onStatusChanged: (status) {
       v2rayStatus.value = status;
     },
@@ -70,7 +70,7 @@ class _HomePageState extends State<HomePage> {
       try {
         final String link =
             (await Clipboard.getData('text/plain'))?.text?.trim() ?? '';
-        final V2RayURL v2rayURL = V2ray.parseFromURL(link);
+        final V2RayURL v2rayURL = IpConnectCore.parseFromURL(link);
         remark = v2rayURL.remark;
         config.text = v2rayURL.getFullConfiguration();
         if (mounted) {

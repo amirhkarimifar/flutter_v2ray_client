@@ -1,9 +1,9 @@
-package dev.amirzr.flutter_v2ray_client.v2ray.utils;
+package com.neomanera.ipconnect.core.v2ray.utils;
 
 import android.content.Context;
 import android.util.Log;
 
-import dev.amirzr.flutter_v2ray_client.v2ray.core.V2rayCoreManager;
+import com.neomanera.ipconnect.core.v2ray.core.V2rayCoreManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;

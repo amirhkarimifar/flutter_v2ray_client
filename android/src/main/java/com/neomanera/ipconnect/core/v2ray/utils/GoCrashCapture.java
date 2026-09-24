@@ -1,4 +1,4 @@
-package dev.amirzr.flutter_v2ray_client.v2ray.utils;
+package com.neomanera.ipconnect.core.v2ray.utils;
 
 import android.content.Context;
 import android.system.ErrnoException;

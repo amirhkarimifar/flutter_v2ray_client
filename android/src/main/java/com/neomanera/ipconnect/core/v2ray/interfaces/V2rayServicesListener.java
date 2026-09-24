@@ -1,4 +1,4 @@
-package dev.amirzr.flutter_v2ray_client.v2ray.interfaces;
+package com.neomanera.ipconnect.core.v2ray.interfaces;
 
 import android.app.Service;
 
