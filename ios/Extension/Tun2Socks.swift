@@ -125,6 +125,10 @@ enum Tun2Socks {
     /// defaults: a packet tunnel provider is capped at 50 MiB on iOS 15+ (15 MiB
     /// on iOS 14 and earlier) and jetsam kills the process outright when it goes
     /// over. Defaults sized for a desktop will not survive here.
+    ///
+    /// `log-file` must be `stdout` or `stderr`: anything else, `null` included,
+    /// is opened as a file path relative to `/`, which the sandbox refuses, and
+    /// tun2socks exits with -2 before moving a packet.
     static func configuration(socksPort: Int, mtu: Int, logLevel: String = "warn") -> String {
         """
         tunnel:
@@ -142,7 +146,7 @@ enum Tun2Socks {
           tcp-read-write-timeout: 300000
           udp-read-write-timeout: 60000
           limit-nofile: 16384
-          log-file: null
+          log-file: stderr
           log-level: \(logLevel)
         """
     }

@@ -50,8 +50,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     override func startTunnel(options: [String: NSObject]? = nil) async throws {
         let configuration = try providerConfiguration()
 
-        let xrayConfig = try xrayConfigData(from: configuration)
-        let socksPort = try resolveSocksPort(configuration: configuration, xrayConfig: xrayConfig)
+        let (xrayConfig, socksPort) = try bindSocksInbound(
+            configuration: configuration,
+            xrayConfig: try xrayConfigData(from: configuration)
+        )
         let mtu = (configuration[TunnelIPC.ConfigKey.mtu] as? Int) ?? Interface.defaultMTU
         let dnsServers = (configuration[TunnelIPC.ConfigKey.dnsServers] as? [String]) ?? Default.dnsServers
 
@@ -143,29 +145,68 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         throw TunnelError.missingConfiguration
     }
 
-    /// Prefers the port the app passed, and otherwise reads the first local
-    /// SOCKS or HTTP inbound out of the Xray config.
-    private func resolveSocksPort(configuration: [String: Any], xrayConfig: Data) throws -> Int {
-        if let port = configuration[TunnelIPC.ConfigKey.socksPort] as? Int, port > 0 {
-            return port
-        }
-
+    /// Moves the SOCKS inbound tun2socks will use onto a free loopback port and
+    /// returns the rewritten config with that port.
+    ///
+    /// The config's own port cannot be trusted: loopback is shared by every
+    /// process on the device, and another VPN client left suspended in the
+    /// background keeps its listener on 1080 or 10808, which fails the start
+    /// with "address already in use". The inbound is also pinned to 127.0.0.1,
+    /// the address tun2socks dials, so it is never reachable from the LAN.
+    ///
+    /// The inbound whose port matches the one the app passed wins; otherwise
+    /// the first SOCKS inbound. HTTP inbounds are skipped: tun2socks speaks
+    /// SOCKS5 only.
+    private func bindSocksInbound(configuration: [String: Any], xrayConfig: Data) throws -> (Data, Int) {
         guard
-            let json = try? JSONSerialization.jsonObject(with: xrayConfig) as? [String: Any],
-            let inbounds = json["inbounds"] as? [[String: Any]]
+            var json = try? JSONSerialization.jsonObject(with: xrayConfig) as? [String: Any],
+            var inbounds = json["inbounds"] as? [[String: Any]]
         else {
             throw TunnelError.noSocksInbound
         }
 
-        for inbound in inbounds {
-            guard
-                let proto = inbound["protocol"] as? String,
-                proto == "socks" || proto == "http",
-                let port = inbound["port"] as? Int, port > 0
-            else { continue }
-            return port
+        let socksIndices = inbounds.indices.filter { inbounds[$0]["protocol"] as? String == "socks" }
+        let requestedPort = configuration[TunnelIPC.ConfigKey.socksPort] as? Int
+        guard let index = socksIndices.first(where: { inbounds[$0]["port"] as? Int == requestedPort })
+            ?? socksIndices.first
+        else {
+            throw TunnelError.noSocksInbound
         }
-        throw TunnelError.noSocksInbound
+
+        let port = try freeLoopbackPort()
+        inbounds[index]["port"] = port
+        inbounds[index]["listen"] = "127.0.0.1"
+        json["inbounds"] = inbounds
+
+        return (try JSONSerialization.data(withJSONObject: json), port)
+    }
+
+    /// Asks the kernel for an unused loopback port by binding port 0.
+    ///
+    /// The socket is closed before Xray binds the port, so another process
+    /// could in principle take it in between; ephemeral ports are handed out
+    /// in sequence, which makes that far less likely than a fixed port being
+    /// taken.
+    private func freeLoopbackPort() throws -> Int {
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { throw TunnelError.noFreePort(errno) }
+        defer { close(fd) }
+
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        address.sin_port = 0
+
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let bound = withUnsafeMutablePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { socketAddress in
+                bind(fd, socketAddress, length) == 0
+                    && getsockname(fd, socketAddress, &length) == 0
+            }
+        }
+        guard bound else { throw TunnelError.noFreePort(errno) }
+        return Int(UInt16(bigEndian: address.sin_port))
     }
 
     private func networkSettings(mtu: Int, dnsServers: [String]) -> NEPacketTunnelNetworkSettings {
@@ -279,6 +320,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 private enum TunnelError: LocalizedError {
     case missingConfiguration
     case noSocksInbound
+    case noFreePort(Int32)
     case coreStartFailed(String)
     case packetPathFailed(String)
 
@@ -287,7 +329,9 @@ private enum TunnelError: LocalizedError {
         case .missingConfiguration:
             return "The tunnel was started without an Xray configuration."
         case .noSocksInbound:
-            return "The Xray configuration has no local SOCKS or HTTP inbound for tun2socks to use."
+            return "The Xray configuration has no SOCKS inbound for tun2socks to use."
+        case .noFreePort(let code):
+            return "No free loopback port for the SOCKS inbound: \(String(cString: strerror(code)))"
         case .coreStartFailed(let reason):
             return "Xray could not start: \(reason)"
         case .packetPathFailed(let reason):
