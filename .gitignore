@@ -87,3 +87,10 @@ ios/Xray.xcframework/
 ios/HevSocks5Tunnel.xcframework/
 ios/core/Xray.xcframework/
 ios/core/go.sum
+
+# Written by Flutter on every build, with paths of the machine that built it.
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/ephemeral/
+**/macos/Flutter/ephemeral/
+**/linux/flutter/ephemeral/

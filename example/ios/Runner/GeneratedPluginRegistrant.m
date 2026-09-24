@@ -6,16 +6,16 @@
 
 #import "GeneratedPluginRegistrant.h"
 
-#if __has_include(<flutter_v2ray_client/FlutterV2rayPlugin.h>)
-#import <flutter_v2ray_client/FlutterV2rayPlugin.h>
+#if __has_include(<ipconnect_core/IpConnectCorePlugin.h>)
+#import <ipconnect_core/IpConnectCorePlugin.h>
 #else
-@import flutter_v2ray_client;
+@import ipconnect_core;
 #endif
 
 @implementation GeneratedPluginRegistrant
 
 + (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry {
-  [FlutterV2rayPlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterV2rayPlugin"]];
+  [IpConnectCorePlugin registerWithRegistrar:[registry registrarForPlugin:@"IpConnectCorePlugin"]];
 }
 
 @end
