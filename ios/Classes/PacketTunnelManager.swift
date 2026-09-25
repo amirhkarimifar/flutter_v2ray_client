@@ -57,6 +57,14 @@ final class PacketTunnelManager {
 
     // MARK: - Profile
 
+    /// The app's display name, used as the profile's name in Settings > VPN.
+    static var profileName: String {
+        let info = Bundle.main.infoDictionary
+        return info?["CFBundleDisplayName"] as? String
+            ?? info?["CFBundleName"] as? String
+            ?? "VPN"
+    }
+
     /// Loads the existing profile for this extension, if one is installed.
     @discardableResult
     func reload() async -> NETunnelProviderManager? {
@@ -82,7 +90,6 @@ final class PacketTunnelManager {
     /// The first call is what triggers the system's VPN permission sheet, which
     /// is why `requestPermission()` on the Dart side lands here.
     func save(
-        remark: String,
         xrayConfig: Data,
         socksPort: Int?,
         mtu: Int?,
@@ -91,13 +98,16 @@ final class PacketTunnelManager {
     ) async throws {
         let target = manager ?? NETunnelProviderManager()
 
-        target.localizedDescription = remark
+        // One fixed name for the profile, whatever server is in use. The link's
+        // remark (the part after #) is an internal server tag, and using it
+        // renamed the profile in Settings > VPN on every server change.
+        target.localizedDescription = Self.profileName
 
         let configuration = NETunnelProviderProtocol()
         configuration.providerBundleIdentifier = providerBundleIdentifier
-        // Shown in Settings > VPN. Not a real address; the tunnel has no single
-        // server, and Xray picks the outbound from its own config.
-        configuration.serverAddress = remark
+        // Shown in Settings > VPN as "Server". Not a real address; Xray picks
+        // the outbound from its own config.
+        configuration.serverAddress = Self.profileName
 
         var providerConfiguration: [String: Any] = [
             TunnelIPC.ConfigKey.xrayConfig: xrayConfig,
@@ -130,7 +140,6 @@ final class PacketTunnelManager {
         await reload()
         do {
             try await save(
-                remark: manager?.localizedDescription ?? "Xray",
                 xrayConfig: existingConfig() ?? Data("{}".utf8),
                 socksPort: nil,
                 mtu: nil,

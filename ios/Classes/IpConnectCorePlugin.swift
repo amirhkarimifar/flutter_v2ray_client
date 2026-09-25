@@ -156,14 +156,15 @@ public class IpConnectCorePlugin: NSObject, FlutterPlugin, FlutterStreamHandler 
         }
         guard
             let arguments = call.arguments as? [String: Any],
-            let remark = arguments["remark"] as? String,
+            // "remark" is still sent but not used on iOS: the profile always
+            // carries the app's name, see PacketTunnelManager.profileName.
             let config = arguments["config"] as? String,
             let configData = config.data(using: .utf8)
         else {
             result(
                 FlutterError(
                     code: "INVALID_ARGUMENTS",
-                    message: "startV2Ray needs a remark and a config.",
+                    message: "startV2Ray needs a config.",
                     details: nil
                 )
             )
@@ -189,7 +190,6 @@ public class IpConnectCorePlugin: NSObject, FlutterPlugin, FlutterStreamHandler 
         Task { [weak self] in
             do {
                 try await tunnel.save(
-                    remark: remark,
                     xrayConfig: configData,
                     socksPort: arguments["socksPort"] as? Int,
                     mtu: arguments["mtu"] as? Int,
