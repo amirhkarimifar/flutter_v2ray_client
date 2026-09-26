@@ -63,6 +63,8 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                 stopSelf();
                 return START_NOT_STICKY;
             }
+            // Foreground first: everything after this can be slow or fail.
+            V2rayCoreManager.getInstance().enterForeground(v2rayConfig);
             // Reset stopping flag for new connection
             isStopping = false;
             // startCore() handles stopping existing core internally with proper cleanup delay
@@ -70,6 +72,10 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                 Log.i("V2rayVPNService", "onStartCommand success => v2ray core started.");
             } else {
                 Log.e("V2rayVPNService", "Failed to start v2ray core");
+                try {
+                    stopForeground(true);
+                } catch (Exception ignored) {
+                }
                 stopSelf();
                 return START_NOT_STICKY;
             }

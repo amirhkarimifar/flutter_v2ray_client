@@ -419,6 +419,19 @@ public final class V2rayCoreManager {
         return "";
     }
 
+    /**
+     * Puts the service in the foreground before any core work. Android gives a
+     * service started with startForegroundService() about five seconds to call
+     * startForeground(); starting the core first could take longer, and a core
+     * that failed to start stopped the service without ever calling it — the
+     * source of the "did not then call startForeground()" ANRs and crashes.
+     * startCore() calls showNotification() again once connected, which just
+     * updates the same notification.
+     */
+    public void enterForeground(final V2rayConfig v2rayConfig) {
+        showNotification(v2rayConfig);
+    }
+
     private void showNotification(final V2rayConfig v2rayConfig) {
         Service context = v2rayServicesListener.getService();
         if (context == null) {
