@@ -38,7 +38,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         /// relays UDP to the SOCKS inbound and Xray answers. Keep this in step
         /// with the `dns` block of the generated Xray config.
         static let dnsServers = ["1.1.1.1", "8.8.8.8"]
-        static let memoryLimitMegabytes = 45
+        /// Go heap cap. The whole process is killed at 50 MiB, and the heap
+        /// is not the only tenant: the Go runtime, tun2socks sessions and the
+        /// extension itself share that budget. At 45 the process was killed
+        /// at 51 MiB within seconds of connecting (iOS 27, iPhone 17).
+        static let memoryLimitMegabytes = 30
     }
 
     private var groupIdentifier: String?
@@ -157,6 +161,35 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     /// The inbound whose port matches the one the app passed wins; otherwise
     /// the first SOCKS inbound. HTTP inbounds are skipped: tun2socks speaks
     /// SOCKS5 only.
+    /// Trims the config to the extension's 50 MiB jetsam budget.
+    ///
+    /// Without a policy Xray gives every connection its desktop-sized default
+    /// buffer, so memory grows with each connection apps open; at the
+    /// defaults the process was killed at 50 MiB within 90 seconds of normal
+    /// use (iOS 27, iPhone 17). FakeDNS pools are shrunk too: each entry is
+    /// kept in memory for the life of the tunnel.
+    private static func fitMemoryBudget(_ json: inout [String: Any]) {
+        var policy = json["policy"] as? [String: Any] ?? [:]
+        var levels = policy["levels"] as? [String: Any] ?? [:]
+        var level0 = levels["0"] as? [String: Any] ?? [:]
+        level0["bufferSize"] = 4          // KiB per connection
+        level0["connIdle"] = 120          // seconds
+        level0["handshake"] = 4
+        level0["uplinkOnly"] = 1
+        level0["downlinkOnly"] = 1
+        levels["0"] = level0
+        policy["levels"] = levels
+        json["policy"] = policy
+
+        if let pools = json["fakedns"] as? [[String: Any]] {
+            json["fakedns"] = pools.map { pool -> [String: Any] in
+                var pool = pool
+                pool["poolSize"] = min(pool["poolSize"] as? Int ?? 4096, 4096)
+                return pool
+            }
+        }
+    }
+
     private func bindSocksInbound(configuration: [String: Any], xrayConfig: Data) throws -> (Data, Int) {
         guard
             var json = try? JSONSerialization.jsonObject(with: xrayConfig) as? [String: Any],
@@ -177,6 +210,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         inbounds[index]["port"] = port
         inbounds[index]["listen"] = "127.0.0.1"
         json["inbounds"] = inbounds
+        Self.fitMemoryBudget(&json)
 
         return (try JSONSerialization.data(withJSONObject: json), port)
     }
@@ -245,6 +279,25 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     // The completion-handler form, not the async one: this method's completion
     // handler is optional in the ObjC interface, so Swift does not synthesise an
     // async variant to override.
+    /// Ends a free session at its deadline. See TunnelIPC.RequestKind.deadline.
+    private var deadlineTimer: DispatchSourceTimer?
+
+    private func setDeadline(epochMillis: Int?) {
+        deadlineTimer?.cancel()
+        deadlineTimer = nil
+        guard let epochMillis, epochMillis > 0 else { return }
+        let delay = max(0, Double(epochMillis) / 1000 - Date().timeIntervalSince1970)
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now() + delay, leeway: .seconds(1))
+        timer.setEventHandler { [weak self] in
+            self?.log("Free session time is up; stopping the tunnel")
+            self?.cancelTunnelWithError(nil)
+        }
+        deadlineTimer = timer
+        timer.resume()
+        log("Session deadline set in \(Int(delay)) s")
+    }
+
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
         let request: TunnelIPC.Request
         do {
@@ -257,6 +310,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         switch request.kind {
+        case .deadline:
+            setDeadline(epochMillis: request.epochMillis)
+            completionHandler?(TunnelIPC.encode(TunnelIPC.Response()))
+
         case .traffic:
             let stats = Tun2Socks.stats
             completionHandler?(

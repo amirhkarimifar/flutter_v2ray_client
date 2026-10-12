@@ -138,10 +138,10 @@ enum Tun2Socks {
           address: 127.0.0.1
           udp: 'udp'
         misc:
-          task-stack-size: 20480
-          tcp-buffer-size: 32768
-          udp-recv-buffer-size: 262144
-          max-session-count: 256
+          task-stack-size: 16384
+          tcp-buffer-size: 16384
+          udp-recv-buffer-size: 131072
+          max-session-count: 128
           connect-timeout: 5000
           tcp-read-write-timeout: 300000
           udp-read-write-timeout: 60000

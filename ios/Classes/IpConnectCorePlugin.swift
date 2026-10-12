@@ -85,6 +85,13 @@ public class IpConnectCorePlugin: NSObject, FlutterPlugin, FlutterStreamHandler 
             connectedServerDelay(call: call, result: result)
         case "getLogs":
             logs(result: result)
+        case "setSessionDeadline":
+            let args = call.arguments as? [String: Any]
+            let epochMillis = (args?["epochMillis"] as? NSNumber)?.intValue ?? 0
+            Task {
+                _ = await request(TunnelIPC.Request(kind: .deadline, epochMillis: epochMillis))
+                await MainActor.run { result(nil) }
+            }
         case "clearLogs":
             clearLogs(result: result)
         case "getPlatformVersion":

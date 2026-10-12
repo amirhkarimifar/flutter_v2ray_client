@@ -184,6 +184,15 @@ class IpConnectCore {
     return true;
   }
 
+  /// Stops the running tunnel at [at] even while the app is suspended; null
+  /// clears it. Only iOS needs it: there the app is paused in the background,
+  /// but the packet tunnel keeps running. A no-op elsewhere.
+  Future<void> setSessionDeadline(DateTime? at) async {
+    if (Platform.isIOS) {
+      return IpConnectCorePlatform.instance.setSessionDeadline(at);
+    }
+  }
+
   /// Parses a V2Ray URL string and returns the corresponding V2RayURL object.
   /// [url] is the V2Ray share link (e.g., 'vmess://', 'vless://', etc.).
   /// Throws an [ArgumentError] if the URL scheme is invalid.

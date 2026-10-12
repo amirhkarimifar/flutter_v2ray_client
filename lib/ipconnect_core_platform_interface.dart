@@ -134,4 +134,11 @@ abstract class IpConnectCorePlatform extends PlatformInterface {
       'clearLogs() has not been implemented.',
     );
   }
+
+  /// Stops the running tunnel at [at]; null clears it. iOS only.
+  Future<void> setSessionDeadline(DateTime? at) async {
+    throw UnimplementedError(
+      'setSessionDeadline() has not been implemented.',
+    );
+  }
 }

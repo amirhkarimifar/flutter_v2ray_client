@@ -39,17 +39,23 @@ public enum TunnelIPC {
         case logs
         /// Discard the log file.
         case clearLogs
+        /// Stop the tunnel at `epochMillis` (Unix time in milliseconds); 0 or
+        /// nil clears it. Free sessions use it: the app is suspended in the
+        /// background on iOS, so only the extension can end them on time.
+        case deadline
     }
 
     public struct Request: Codable {
         public let kind: RequestKind
         public let url: String?
         public let timeoutMillis: Int?
+        public let epochMillis: Int?
 
-        public init(kind: RequestKind, url: String? = nil, timeoutMillis: Int? = nil) {
+        public init(kind: RequestKind, url: String? = nil, timeoutMillis: Int? = nil, epochMillis: Int? = nil) {
             self.kind = kind
             self.url = url
             self.timeoutMillis = timeoutMillis
+            self.epochMillis = epochMillis
         }
     }
 

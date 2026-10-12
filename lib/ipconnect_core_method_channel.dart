@@ -122,4 +122,13 @@ class MethodChannelIpConnectCore extends IpConnectCorePlatform {
       return false;
     }
   }
+
+  @override
+  Future<void> setSessionDeadline(DateTime? at) async {
+    try {
+      await methodChannel.invokeMethod('setSessionDeadline', {
+        'epochMillis': at?.millisecondsSinceEpoch ?? 0,
+      });
+    } catch (_) {}
+  }
 }
