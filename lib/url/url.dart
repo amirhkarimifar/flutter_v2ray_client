@@ -81,14 +81,17 @@ abstract class V2RayURL {
       'network': null,
       'address': null,
       'port': null,
-      'domainStrategy': 'UseIp',
       'redirect': null,
       'userLevel': null,
       'inboundTag': null,
       'secretKey': null,
       'peers': null
     },
-    'streamSettings': null,
+    // freedom.domainStrategy is deprecated since xray 26.9; sockopt is the
+    // supported home and also works on the 26.2.6 core (32-bit builds).
+    'streamSettings': {
+      'sockopt': {'domainStrategy': 'UseIP'},
+    },
     'proxySettings': null,
     'sendThrough': null,
     'mux': null

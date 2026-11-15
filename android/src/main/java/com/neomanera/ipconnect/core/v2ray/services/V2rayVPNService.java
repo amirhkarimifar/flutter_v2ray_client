@@ -30,6 +30,8 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
     private V2rayConfig v2rayConfig;
     private volatile boolean isRunning = true;
     private volatile boolean isStopping = false;
+    // True while xray reads the interface itself (native TUN): no tun2socks.
+    private volatile boolean nativeTun = false;
 
     @Override
     public void onCreate() {
@@ -135,10 +137,24 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
 
     }
 
+    /** Legacy path (old cores): interface, then tun2socks bridges it to the SOCKS inbound. */
     private void setup() {
+        if (!buildInterface()) return;
+        runTun2socks();
+    }
+
+    @Override
+    public int establishTun() {
+        if (!buildInterface()) return -1;
+        nativeTun = true;
+        return mInterface.getFd();
+    }
+
+    /** Establishes the VPN interface into mInterface. False if not permitted or it failed. */
+    private boolean buildInterface() {
         Intent prepare_intent = prepare(this);
         if (prepare_intent != null) {
-            return;
+            return false;
         }
         Builder builder = new Builder();
         builder.setSession(v2rayConfig.REMARK);
@@ -166,9 +182,8 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                 }
             }
         }
-        // Exclude VPN app itself from routing — prevents routing loops.
-        // Combined with Libv2ray.useProtector() in V2rayCoreManager for belt-and-suspenders
-        // socket protection. Both mechanisms ensure Go's outbound sockets bypass the VPN.
+        // Exclude VPN app itself from routing — prevents routing loops: the core's
+        // outbound sockets live in this app, so they always bypass the tunnel.
         try {
             builder.addDisallowedApplication(getPackageName());
         } catch (Exception e) {
@@ -221,13 +236,18 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
 
         try {
             mInterface = builder.establish();
+            if (mInterface == null) {
+                Log.e("VPN_SERVICE", "establish() returned null (VPN permission revoked?)");
+                return false;
+            }
             isRunning = true;
-            runTun2socks();
+            isStopping = false;
+            return true;
         } catch (Exception e) {
             Log.e("VPN_SERVICE", "Failed to establish VPN interface", e);
             stopAllProcess();
+            return false;
         }
-
     }
 
     private void runTun2socks() {
@@ -363,11 +383,15 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
 
     @Override
     public void startService() {
+        // Called from the core's startup callback. With native TUN the interface
+        // was already handed to the core in establishTun(); nothing to launch.
+        if (nativeTun) return;
         setup();
     }
 
     @Override
     public void stopService() {
         stopAllProcess();
+        nativeTun = false;
     }
 }

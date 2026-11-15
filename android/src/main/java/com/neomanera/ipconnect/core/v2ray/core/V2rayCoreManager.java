@@ -167,9 +167,11 @@ public final class V2rayCoreManager {
 
             // Only initialize Go runtime once — re-initializing can crash the Go shared library
             if (!isLibV2rayCoreInitialized) {
-                // Must precede the first Go call: loading libgojni is what starts
-                // the runtime that writes fatal reports to fd 2, and anything it
-                // writes before the redirect is gone for good.
+                // Load libgojni first: its gomobile init dup2()s its own pipe over
+                // fd 2, which silently replaced our redirect when we installed
+                // first. Installing after the load makes our pipe the final fd 2,
+                // so Go fatal reports reach GoCrashCapture.
+                Libv2ray.touch();
                 GoCrashCapture.install(targetService.getApplicationContext());
                 Libv2ray.initCoreEnv(getUserAssetsPath(targetService.getApplicationContext()), "");
 
@@ -257,11 +259,29 @@ public final class V2rayCoreManager {
                 }
                 if (coreController == null) return false;
             }
-            coreController.startLoop(v2rayConfig.V2RAY_FULL_JSON_CONFIG, 0);
+            String config = v2rayConfig.V2RAY_FULL_JSON_CONFIG;
+            int tunFd = 0;
+            if (v2rayServicesListener instanceof V2rayVPNService && coreHasNativeTun()) {
+                // xray >= 26.9 gives every SOCKS UDP association its own random
+                // port, which tun2socks' udprelay ignores — DNS dies and nothing
+                // loads. Hand the interface to xray's own TUN inbound instead.
+                tunFd = v2rayServicesListener.establishTun();
+                if (tunFd < 0) {
+                    Log.e(V2rayCoreManager.class.getSimpleName(), "startCore failed => VPN interface not established.");
+                    return false;
+                }
+                config = withTunInbound(config);
+            }
+            coreController.startLoop(config, tunFd);
             V2RAY_STATE = AppConfigs.V2RAY_STATES.V2RAY_CONNECTED;
             started = true;
         } catch (Exception e) {
             Log.e(V2rayCoreManager.class.getSimpleName(), "startCore failed =>", e);
+            // Native TUN: the interface is already up. Left open with no core
+            // reading it, it would black-hole all traffic, so tear it down.
+            if (v2rayServicesListener != null) {
+                try { v2rayServicesListener.stopService(); } catch (Exception ignored) {}
+            }
         } finally {
             coreLock.unlock();
         }
@@ -276,6 +296,64 @@ public final class V2rayCoreManager {
             }
         }
         return started;
+    }
+
+    private Boolean nativeTunSupported;
+
+    /**
+     * Native TUN is used on cores from xray 26.9 on (the arm64 build). The
+     * 32-bit build stays on xray 26.2.6 (Go 1.25, see the seccomp note in the
+     * core history), whose SOCKS UDP still shares the TCP port, so it keeps the
+     * proven tun2socks path.
+     */
+    private boolean coreHasNativeTun() {
+        if (nativeTunSupported != null) return nativeTunSupported;
+        boolean supported = false;
+        try {
+            // "Lib v40, Xray-core v26.11.9"
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("Xray-core v(\\d+)\\.(\\d+)")
+                    .matcher(Libv2ray.checkVersionX());
+            if (m.find()) {
+                int major = Integer.parseInt(m.group(1));
+                int minor = Integer.parseInt(m.group(2));
+                supported = major > 26 || (major == 26 && minor >= 9);
+            }
+        } catch (Exception e) {
+            Log.w(V2rayCoreManager.class.getSimpleName(), "core version check failed", e);
+        }
+        nativeTunSupported = supported;
+        Log.i(V2rayCoreManager.class.getSimpleName(), "native TUN: " + supported);
+        return supported;
+    }
+
+    /** Adds xray's TUN inbound, sniffing like the SOCKS inbound so fakedns keeps working. */
+    private static String withTunInbound(String config) {
+        try {
+            JSONObject json = new JSONObject(config);
+            org.json.JSONArray inbounds = json.optJSONArray("inbounds");
+            if (inbounds == null) {
+                inbounds = new org.json.JSONArray();
+                json.put("inbounds", inbounds);
+            }
+            JSONObject sniffing = null;
+            for (int i = 0; i < inbounds.length(); i++) {
+                JSONObject in = inbounds.optJSONObject(i);
+                if (in != null && "socks".equals(in.optString("protocol"))) {
+                    sniffing = in.optJSONObject("sniffing");
+                }
+            }
+            JSONObject tun = new JSONObject()
+                    .put("tag", "tun-in")
+                    .put("protocol", "tun")
+                    .put("settings", new JSONObject().put("name", "xray0").put("MTU", 1500));
+            if (sniffing != null) tun.put("sniffing", new JSONObject(sniffing.toString()));
+            inbounds.put(tun);
+            return json.toString();
+        } catch (Exception e) {
+            Log.e(V2rayCoreManager.class.getSimpleName(), "withTunInbound failed", e);
+            return config;
+        }
     }
 
     public void stopCore() {
