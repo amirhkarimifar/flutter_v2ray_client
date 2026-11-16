@@ -33,8 +33,11 @@ import java.util.Deque;
  * persists the report to disk. The Go process dies moments later, so the file is
  * the only way the text outlives it; the next app launch picks it up.
  *
- * <p>Install this in the :RunSoLibV2RayDaemon process only, and before the Go
- * library is loaded, or the first fault is still lost.
+ * <p>Install this in the :RunSoLibV2RayDaemon process only, and right AFTER the
+ * Go library is loaded (call {@code Libv2ray.touch()} first): gomobile's own
+ * init dup2()s its pipe over fd 2 at load time, which would silently replace a
+ * redirect installed earlier. Nothing Go writes to fd 2 before a core starts
+ * is lost by this order, since the load itself writes nothing.
  */
 public final class GoCrashCapture {
     private static final String TAG = "GoStderr";

@@ -268,6 +268,8 @@ public final class V2rayCoreManager {
                 tunFd = v2rayServicesListener.establishTun();
                 if (tunFd < 0) {
                     Log.e(V2rayCoreManager.class.getSimpleName(), "startCore failed => VPN interface not established.");
+                    // Tell Dart, or it waits in "connecting" until its own timeout.
+                    sendDisconnectedBroadCast();
                     return false;
                 }
                 config = withTunInbound(config);
@@ -282,6 +284,7 @@ public final class V2rayCoreManager {
             if (v2rayServicesListener != null) {
                 try { v2rayServicesListener.stopService(); } catch (Exception ignored) {}
             }
+            sendDisconnectedBroadCast();
         } finally {
             coreLock.unlock();
         }
@@ -305,6 +308,10 @@ public final class V2rayCoreManager {
      * 32-bit build stays on xray 26.2.6 (Go 1.25, see the seccomp note in the
      * core history), whose SOCKS UDP still shares the TCP port, so it keeps the
      * proven tun2socks path.
+     *
+     * <p>KEEP IN SYNC with the app's lib/helpers/core_info.dart, which hides
+     * servers per core by ABI (arm64 = new) so the UI process never loads Go.
+     * Moving another ABI to the new core, or arm64 back, means updating both.
      */
     private boolean coreHasNativeTun() {
         if (nativeTunSupported != null) return nativeTunSupported;
@@ -327,33 +334,37 @@ public final class V2rayCoreManager {
         return supported;
     }
 
-    /** Adds xray's TUN inbound, sniffing like the SOCKS inbound so fakedns keeps working. */
-    private static String withTunInbound(String config) {
-        try {
-            JSONObject json = new JSONObject(config);
-            org.json.JSONArray inbounds = json.optJSONArray("inbounds");
-            if (inbounds == null) {
-                inbounds = new org.json.JSONArray();
-                json.put("inbounds", inbounds);
-            }
-            JSONObject sniffing = null;
-            for (int i = 0; i < inbounds.length(); i++) {
-                JSONObject in = inbounds.optJSONObject(i);
-                if (in != null && "socks".equals(in.optString("protocol"))) {
-                    sniffing = in.optJSONObject("sniffing");
-                }
-            }
-            JSONObject tun = new JSONObject()
-                    .put("tag", "tun-in")
-                    .put("protocol", "tun")
-                    .put("settings", new JSONObject().put("name", "xray0").put("MTU", 1500));
-            if (sniffing != null) tun.put("sniffing", new JSONObject(sniffing.toString()));
-            inbounds.put(tun);
-            return json.toString();
-        } catch (Exception e) {
-            Log.e(V2rayCoreManager.class.getSimpleName(), "withTunInbound failed", e);
-            return config;
+    /**
+     * Adds xray's TUN inbound, sniffing like the SOCKS inbound so fakedns keeps
+     * working, at the SOCKS inbound's policy level (8: the connIdle/uplinkOnly
+     * timeouts Utilities sets). Throws on bad JSON: startCore must then fail
+     * and tear the interface down, never run a core that ignores the TUN.
+     */
+    private static String withTunInbound(String config) throws org.json.JSONException {
+        JSONObject json = new JSONObject(config);
+        org.json.JSONArray inbounds = json.optJSONArray("inbounds");
+        if (inbounds == null) {
+            inbounds = new org.json.JSONArray();
+            json.put("inbounds", inbounds);
         }
+        JSONObject sniffing = null;
+        int userLevel = 8;
+        for (int i = 0; i < inbounds.length(); i++) {
+            JSONObject in = inbounds.optJSONObject(i);
+            if (in != null && "socks".equals(in.optString("protocol"))) {
+                sniffing = in.optJSONObject("sniffing");
+                JSONObject st = in.optJSONObject("settings");
+                if (st != null) userLevel = st.optInt("userLevel", userLevel);
+            }
+        }
+        JSONObject tun = new JSONObject()
+                .put("tag", "tun-in")
+                .put("protocol", "tun")
+                .put("settings", new JSONObject()
+                        .put("name", "xray0").put("MTU", 1500).put("userLevel", userLevel));
+        if (sniffing != null) tun.put("sniffing", new JSONObject(sniffing.toString()));
+        inbounds.put(tun);
+        return json.toString();
     }
 
     public void stopCore() {
