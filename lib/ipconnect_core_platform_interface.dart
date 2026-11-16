@@ -68,6 +68,7 @@ abstract class IpConnectCorePlatform extends PlatformInterface {
     required String config,
     required String notificationDisconnectButtonName,
     List<String>? blockedApps,
+    List<String>? allowedApps,
     List<String>? bypassSubnets,
     bool proxyOnly = false,
   }) {

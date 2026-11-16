@@ -50,11 +50,13 @@ public class V2rayController {
     }
 
     public static void StartV2ray(final Context context, final String remark, final String config,
-            final ArrayList<String> blocked_apps, final ArrayList<String> bypass_subnets) {
+            final ArrayList<String> blocked_apps, final ArrayList<String> bypass_subnets,
+            final ArrayList<String> allowed_apps) {
         AppConfigs.V2RAY_CONFIG = Utilities.parseV2rayJsonFile(remark, config, blocked_apps, bypass_subnets);
         if (AppConfigs.V2RAY_CONFIG == null) {
             return;
         }
+        AppConfigs.V2RAY_CONFIG.ALLOWED_APPS = allowed_apps;
         Intent start_intent;
         if (AppConfigs.V2RAY_CONNECTION_MODE == AppConfigs.V2RAY_CONNECTION_MODES.PROXY_ONLY) {
             start_intent = new Intent(context, V2rayProxyOnlyService.class);

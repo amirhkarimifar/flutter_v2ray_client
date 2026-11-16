@@ -173,21 +173,39 @@ public class V2rayVPNService extends VpnService implements V2rayServicesListener
                 }
             }
         }
-        if (v2rayConfig.BLOCKED_APPS != null) {
-            for (int i = 0; i < v2rayConfig.BLOCKED_APPS.size(); i++) {
+        // Include mode: only the chosen apps use the tunnel. Android forbids
+        // mixing allowed and disallowed apps, and this app is never in the
+        // allowed set, so the core's own sockets still bypass the tunnel.
+        int allowed = 0;
+        if (v2rayConfig.ALLOWED_APPS != null) {
+            for (String pkg : v2rayConfig.ALLOWED_APPS) {
+                if (pkg == null || pkg.equals(getPackageName())) continue;
                 try {
-                    builder.addDisallowedApplication(v2rayConfig.BLOCKED_APPS.get(i));
+                    builder.addAllowedApplication(pkg);
+                    allowed++;
                 } catch (Exception e) {
-                    // ignore
+                    // uninstalled since it was chosen
                 }
             }
         }
-        // Exclude VPN app itself from routing — prevents routing loops: the core's
-        // outbound sockets live in this app, so they always bypass the tunnel.
-        try {
-            builder.addDisallowedApplication(getPackageName());
-        } catch (Exception e) {
-            Log.w("V2rayVPNService", "Failed to exclude self from VPN", e);
+        if (allowed == 0) {
+            // Exclude mode (also the fallback when no chosen app is installed).
+            if (v2rayConfig.BLOCKED_APPS != null) {
+                for (int i = 0; i < v2rayConfig.BLOCKED_APPS.size(); i++) {
+                    try {
+                        builder.addDisallowedApplication(v2rayConfig.BLOCKED_APPS.get(i));
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
+            // Exclude VPN app itself from routing — prevents routing loops: the
+            // core's outbound sockets live in this app, so they always bypass it.
+            try {
+                builder.addDisallowedApplication(getPackageName());
+            } catch (Exception e) {
+                Log.w("V2rayVPNService", "Failed to exclude self from VPN", e);
+            }
         }
         try {
             JSONObject json = new JSONObject(v2rayConfig.V2RAY_FULL_JSON_CONFIG);

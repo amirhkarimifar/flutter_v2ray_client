@@ -75,6 +75,8 @@ class IpConnectCore {
   /// [remark] is a string identifier for the connection.
   /// [config] is the V2Ray configuration in JSON format.
   /// [blockedApps] is an optional list of app package names to block.
+  /// [allowedApps], when non-empty, routes ONLY these apps through the VPN
+  /// (Android include mode); [blockedApps] is then ignored.
   /// [bypassSubnets] is an optional list of subnets to bypass the VPN.
   /// [proxyOnly] is a boolean indicating whether to run in proxy-only mode.
   /// [notificationDisconnectButtonName] is the text for the disconnect button in notifications.
@@ -84,6 +86,7 @@ class IpConnectCore {
     required String remark,
     required String config,
     List<String>? blockedApps,
+    List<String>? allowedApps,
     List<String>? bypassSubnets,
     bool proxyOnly = false,
     String notificationDisconnectButtonName = 'DISCONNECT',
@@ -100,6 +103,7 @@ class IpConnectCore {
       remark: remark,
       config: config,
       blockedApps: blockedApps,
+      allowedApps: allowedApps,
       proxyOnly: proxyOnly,
       bypassSubnets: bypassSubnets,
       notificationDisconnectButtonName: notificationDisconnectButtonName,

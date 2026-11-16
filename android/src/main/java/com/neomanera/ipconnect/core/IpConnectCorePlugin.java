@@ -139,7 +139,8 @@ public class IpConnectCorePlugin implements FlutterPlugin, ActivityAware, Plugin
                         V2rayController.changeConnectionMode(AppConfigs.V2RAY_CONNECTION_MODES.VPN_TUN);
                     }
                     V2rayController.StartV2ray(binding.getApplicationContext(), call.argument("remark"),
-                            call.argument("config"), call.argument("blocked_apps"), call.argument("bypass_subnets"));
+                            call.argument("config"), call.argument("blocked_apps"), call.argument("bypass_subnets"),
+                            call.argument("allowed_apps"));
                     result.success(null);
                     break;
                 case "stopV2Ray":
